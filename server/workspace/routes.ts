@@ -354,6 +354,45 @@ workspaceRoutes.post('/attendance/clock-in', async (req, res) => {
   }
 })
 
+workspaceRoutes.get('/sales/leads/:leadId/activities', async (req, res) => {
+  try {
+    const userId = requireUser(req)
+    const workspaceId = req.query.workspaceId
+    if (typeof workspaceId !== 'string' || !workspaceId.trim()) {
+      return res.status(400).json({ error: 'workspaceId is required' })
+    }
+
+    const membership = await requireWorkspaceRole(req, workspaceId, ['owner', 'admin', 'manager', 'sales'])
+    const isElevated = ['owner', 'admin', 'manager'].includes(membership.role)
+
+    const leadConditions = [
+      eq(salesLeads.id, req.params.leadId),
+      eq(salesLeads.workspaceId, workspaceId),
+    ]
+    if (!isElevated) leadConditions.push(eq(salesLeads.ownerUserId, userId))
+
+    const [lead] = await db.select({ id: salesLeads.id })
+      .from(salesLeads)
+      .where(and(...leadConditions))
+      .limit(1)
+
+    if (!lead) return res.status(404).json({ error: 'Lead not found' })
+
+    const rows = await db.select({ activity: salesActivities })
+      .from(salesActivities)
+      .where(and(
+        eq(salesActivities.workspaceId, workspaceId),
+        eq(salesActivities.leadId, req.params.leadId)
+      ))
+      .orderBy(desc(salesActivities.createdAt))
+
+    res.json({ activities: rows.map((row: any) => row.activity) })
+  } catch (error: any) {
+    const status = error?.status === 403 ? 403 : 500
+    res.status(status).json({ error: error.message || 'Failed to fetch sales activities' })
+  }
+})
+
 workspaceRoutes.post('/sales/leads/:leadId/activities', async (req, res) => {
   try {
     const userId = requireUser(req)
