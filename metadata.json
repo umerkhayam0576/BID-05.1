@@ -1,0 +1,8 @@
+{
+  "name": "Remix Bid Exact - Pre-Con RFI \u0026 Estimating Hub",
+  "description": "Enterprise ERP platform for Bid Exact LLC featuring automated project quotation intake, client portal, financial governance with custom commission rules, executive compliance reminders calendar, resource capacity allocation, and 4-point QA deliverables release.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
