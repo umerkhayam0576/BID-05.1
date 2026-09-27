@@ -90,6 +90,16 @@ export async function requireWorkspaceMembership(req: Request, workspaceId: stri
   return membership
 }
 
+export async function requireWorkspaceRole(req: Request, workspaceId: string, allowedRoles: AppRole[]) {
+  const membership = await requireWorkspaceMembership(req, workspaceId)
+  if (!allowedRoles.includes(membership.role as AppRole)) {
+    const error = new Error('Insufficient workspace permissions')
+    ;(error as Error & { status?: number }).status = 403
+    throw error
+  }
+  return membership
+}
+
 export function roleAtLeast(role: string, allowed: AppRole[]) {
   return allowed.includes(role as AppRole)
 }
