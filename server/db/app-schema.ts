@@ -200,4 +200,55 @@ export const auditLogs = pgTable('app_audit_logs', {
   createdAt: timestamps.createdAt,
 })
 
-export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs }
+
+// Personal finance is owned by the authenticated person, not by a company workspace.
+// This keeps personal cash, transactions, assets, and liabilities isolated from entity data.
+export const personalAccounts = pgTable('app_personal_accounts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  accountType: text('account_type').default('cash').notNull(),
+  currency: text('currency').default('USD').notNull(),
+  openingBalance: numeric('opening_balance', { precision: 14, scale: 2 }).default('0').notNull(),
+  status: text('status').default('active').notNull(),
+  ...timestamps,
+})
+
+export const personalTransactions = pgTable('app_personal_transactions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull(),
+  accountId: uuid('account_id').notNull(),
+  transactionType: text('transaction_type').notNull(),
+  category: text('category'),
+  description: text('description'),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  transactionDate: date('transaction_date').notNull(),
+  notes: text('notes'),
+  ...timestamps,
+})
+
+export const personalAssets = pgTable('app_personal_assets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  assetType: text('asset_type').notNull(),
+  currentValue: numeric('current_value', { precision: 14, scale: 2 }).default('0').notNull(),
+  currency: text('currency').default('USD').notNull(),
+  status: text('status').default('active').notNull(),
+  notes: text('notes'),
+  ...timestamps,
+})
+
+export const personalLiabilities = pgTable('app_personal_liabilities', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  liabilityType: text('liability_type').notNull(),
+  currentBalance: numeric('current_balance', { precision: 14, scale: 2 }).default('0').notNull(),
+  currency: text('currency').default('USD').notNull(),
+  status: text('status').default('active').notNull(),
+  notes: text('notes'),
+  ...timestamps,
+})
+
+export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities }
