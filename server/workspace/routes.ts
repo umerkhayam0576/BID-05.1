@@ -45,7 +45,28 @@ workspaceRoutes.get('/notifications', async (req, res) => {
 workspaceRoutes.post('/notifications/:id/read', async (req, res) => {
   try {
     const userId = requireUser(req)
-    await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.id, req.params.id), eq(notifications.recipientUserId, userId)))
+    const [notification] = await db.select({ id: notifications.id })
+      .from(notifications)
+      .innerJoin(memberships, and(
+        eq(memberships.workspaceId, notifications.workspaceId),
+        eq(memberships.userId, userId),
+        eq(memberships.status, 'active')
+      ))
+      .where(and(
+        eq(notifications.id, req.params.id),
+        eq(notifications.recipientUserId, userId)
+      ))
+      .limit(1)
+
+    if (!notification) return res.status(404).json({ error: 'Notification not found' })
+
+    await db.update(notifications)
+      .set({ readAt: new Date() })
+      .where(and(
+        eq(notifications.id, notification.id),
+        eq(notifications.recipientUserId, userId)
+      ))
+
     res.status(204).end()
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to update notification' })
