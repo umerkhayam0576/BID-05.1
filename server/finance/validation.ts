@@ -1,3 +1,6 @@
+import type { Request, Response } from 'express'
+import { getAuthenticatedUserId } from '../auth/middleware'
+
 export type FinanceScope = 'personal' | 'company'
 
 export function getScope(value: unknown): FinanceScope {
@@ -23,12 +26,11 @@ export function requiredText(value: unknown, name: string) {
   return text
 }
 
-export function getUserId(req: { header: (name: string) => string | undefined }) {
-  const value = req.header('x-user-id')
-  if (!value) throw new Error('Missing x-user-id')
-  return value
+export function getUserId(req: Request) {
+  return getAuthenticatedUserId(req)
 }
 
-export function handleRouteError(res: { status: (code: number) => { json: (body: unknown) => unknown } }, error: unknown) {
-  return res.status(400).json({ error: error instanceof Error ? error.message : 'Request failed' })
+export function handleRouteError(res: Response, error: unknown) {
+  const status = Number((error as { status?: number })?.status) || 400
+  return res.status(status).json({ error: error instanceof Error ? error.message : 'Request failed' })
 }
