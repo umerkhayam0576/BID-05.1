@@ -46,7 +46,9 @@ workspaceRoutes.post('/notifications/:id/read', async (req, res) => {
 workspaceRoutes.get('/clients', async (req, res) => {
   try {
     const userId = requireUser(req)
-    const membership = await getMembership(userId, req.query.workspaceId as string | undefined)
+    const workspaceId = req.query.workspaceId
+    if (typeof workspaceId !== 'string' || !workspaceId.trim()) return res.status(400).json({ error: 'workspaceId is required' })
+    const membership = await getMembership(userId, workspaceId)
     if (!membership) return res.status(403).json({ error: 'Workspace access denied' })
 
     const privateRoles = ['client', 'employee']
