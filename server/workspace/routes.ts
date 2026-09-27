@@ -191,11 +191,16 @@ workspaceRoutes.get('/reminders', async (req, res) => {
           .orderBy(reminders.dueAt)
       : await db.select({ reminder: reminders })
           .from(reminders)
-          .innerJoin(projectAccess, eq(projectAccess.projectId, reminders.projectId))
+          .leftJoin(projectAccess, eq(projectAccess.projectId, reminders.projectId))
           .where(and(
             eq(reminders.workspaceId, workspaceId),
-            eq(projectAccess.workspaceId, workspaceId),
-            eq(projectAccess.userId, userId)
+            or(
+              eq(reminders.assignedTo, userId),
+              and(
+                eq(projectAccess.workspaceId, workspaceId),
+                eq(projectAccess.userId, userId)
+              )
+            )
           ))
           .orderBy(reminders.dueAt)
     res.json({ reminders: rows.map((row: any) => row.reminder) })
