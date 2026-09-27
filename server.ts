@@ -2,6 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import path from 'path'
 import { createServer as createViteServer } from 'vite'
+import { authRoutes } from './server/auth/routes'
 import { financeRoutes } from './server/finance/routes'
 import { stripeRoutes } from './server/stripe/routes'
 import { portalRoutes } from './server/portal/routes'
@@ -32,11 +33,12 @@ export function createApp() {
     next()
   })
 
-  app.use('/api/stripe', stripeRoutes)
-
   app.use(express.json({ limit: '1mb' }))
 
-  // All authenticated application APIs must pass through real request authentication.
+  app.use('/api/auth', authRoutes)
+  app.use('/api/stripe', stripeRoutes)
+
+  // All authenticated application APIs must pass through request authentication.
   // The x-user-id header remains supported only in non-production development when explicitly enabled.
   app.use('/api/portal', requireAuthentication, portalRoutes)
   app.use('/api/workspace', requireAuthentication, workspaceRoutes)
