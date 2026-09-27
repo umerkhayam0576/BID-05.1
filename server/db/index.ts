@@ -456,8 +456,6 @@ if (process.env.NODE_ENV === 'production' && !realDb) {
   throw new Error('DATABASE_URL must be configured and reachable in production')
 }
 
-const mockDb = createMockDb()
-
 export const db = new Proxy(mockDb, {
   get(target, prop, receiver) {
     if (realDb && typeof realDb[prop] === 'function') {
