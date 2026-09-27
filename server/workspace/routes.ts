@@ -198,7 +198,20 @@ workspaceRoutes.post('/attendance/clock-in', async (req, res) => {
     const userId = requireUser(req)
     const { workspaceId } = req.body as { workspaceId?: string }
     if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' })
-    await requireWorkspaceMembership(req, workspaceId)
+    const membership = await requireWorkspaceMembership(req, workspaceId)
+    if (!['owner', 'admin', 'manager', 'hr', 'employee'].includes(membership.role)) {
+      return res.status(403).json({ error: 'Attendance access denied' })
+    }
+    const employee = await db.select({ id: employees.id })
+      .from(employees)
+      .where(and(
+        eq(employees.workspaceId, workspaceId),
+        eq(employees.userId, userId),
+        eq(employees.status, 'active')
+      ))
+      .limit(1)
+    if (!employee[0]) return res.status(403).json({ error: 'Employee record required' })
+
     const today = new Date().toISOString().slice(0, 10)
     const [record] = await db.insert(attendanceRecords).values({ workspaceId, employeeUserId: userId, attendanceDate: today, clockIn: new Date() }).onConflictDoUpdate({ target: [attendanceRecords.workspaceId, attendanceRecords.employeeUserId, attendanceRecords.attendanceDate], set: { clockIn: new Date(), status: 'present' } }).returning()
     res.status(201).json({ attendance: record })
