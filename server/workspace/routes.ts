@@ -26,8 +26,17 @@ workspaceRoutes.get('/context/:workspaceId', async (req, res) => {
 workspaceRoutes.get('/notifications', async (req, res) => {
   try {
     const userId = requireUser(req)
-    const rows = await db.select().from(notifications).where(and(eq(notifications.recipientUserId, userId), isNull(notifications.readAt))).orderBy(desc(notifications.createdAt)).limit(50)
-    res.json({ notifications: rows })
+    const rows = await db.select({ notification: notifications })
+      .from(notifications)
+      .innerJoin(memberships, and(
+        eq(memberships.workspaceId, notifications.workspaceId),
+        eq(memberships.userId, userId),
+        eq(memberships.status, 'active')
+      ))
+      .where(and(eq(notifications.recipientUserId, userId), isNull(notifications.readAt)))
+      .orderBy(desc(notifications.createdAt))
+      .limit(50)
+    res.json({ notifications: rows.map((row: any) => row.notification) })
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch notifications' })
   }
