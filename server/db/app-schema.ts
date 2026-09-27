@@ -39,17 +39,27 @@ export const workspaces = pgTable('app_workspaces', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
+  legalStructure: text('legal_structure').default('other').notNull(),
+  industryType: text('industry_type').default('services').notNull(),
+  country: text('country'),
+  currency: text('currency').default('USD').notNull(),
+  createdByUserId: uuid('created_by_user_id').notNull(),
+  status: text('status').default('active').notNull(),
   ...timestamps,
-})
+}, (table) => ({
+  slugUnique: unique('app_workspaces_slug_unique').on(table.slug),
+}))
 
 export const memberships = pgTable('app_memberships', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull(),
-  userId: text('user_id').notNull(),
+  userId: uuid('user_id').notNull(),
   role: text('role').notNull(),
   status: text('status').default('active').notNull(),
   createdAt: timestamps.createdAt,
-})
+}, (table) => ({
+  workspaceUserUnique: unique('app_memberships_workspace_user_unique').on(table.workspaceId, table.userId),
+}))
 
 export const clients = pgTable('app_clients', {
   id: uuid('id').defaultRandom().primaryKey(),
