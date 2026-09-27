@@ -1,8 +1,8 @@
 import { Router } from 'express'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, or, inArray } from 'drizzle-orm'
 import { db } from '../db'
 import { getAuthenticatedUserId, getMembership, requireWorkspaceMembership } from '../auth/middleware'
-import { attendanceRecords, clients, employees, memberships, notifications, projects, reminders, salesActivities, salesLeads } from '../db/app-schema'
+import { attendanceRecords, clients, employees, memberships, notifications, projects, projectAccess, reminders, salesActivities, salesLeads } from '../db/app-schema'
 
 export const workspaceRoutes = Router()
 
@@ -46,7 +46,27 @@ workspaceRoutes.post('/notifications/:id/read', async (req, res) => {
 workspaceRoutes.get('/clients', async (req, res) => {
   try {
     const userId = requireUser(req)
-    const rows = await db.select({ client: clients }).from(clients).innerJoin(memberships, eq(memberships.workspaceId, clients.workspaceId)).where(and(eq(memberships.userId, userId), eq(memberships.status, 'active')))
+    const membership = await getMembership(userId, req.query.workspaceId as string | undefined)
+    if (!membership) return res.status(403).json({ error: 'Workspace access denied' })
+
+    const privateRoles = ['client', 'employee']
+    if (privateRoles.includes(membership.role)) {
+      const rows = await db.select({ client: clients })
+        .from(clients)
+        .innerJoin(projects, eq(projects.clientId, clients.id))
+        .innerJoin(projectAccess, eq(projectAccess.projectId, projects.id))
+        .where(and(
+          eq(clients.workspaceId, membership.workspaceId),
+          eq(projectAccess.workspaceId, membership.workspaceId),
+          eq(projectAccess.userId, userId)
+        ))
+      const uniqueClients = Array.from(new Map(rows.map((row: any) => [row.client.id, row.client])).values())
+      return res.json({ clients: uniqueClients.map((client: any) => ({ id: client.id, status: client.status })) })
+    }
+
+    const rows = await db.select({ client: clients })
+      .from(clients)
+      .where(eq(clients.workspaceId, membership.workspaceId))
     res.json({ clients: rows.map((row: any) => row.client) })
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch clients' })
@@ -56,7 +76,25 @@ workspaceRoutes.get('/clients', async (req, res) => {
 workspaceRoutes.get('/projects', async (req, res) => {
   try {
     const userId = requireUser(req)
-    const rows = await db.select({ project: projects }).from(projects).innerJoin(memberships, eq(memberships.workspaceId, projects.workspaceId)).where(and(eq(memberships.userId, userId), eq(memberships.status, 'active')))
+    const membership = await getMembership(userId, req.query.workspaceId as string | undefined)
+    if (!membership) return res.status(403).json({ error: 'Workspace access denied' })
+
+    const elevatedRoles = ['owner', 'admin', 'manager', 'sales', 'finance', 'hr']
+    const isElevated = elevatedRoles.includes(membership.role)
+
+    const rows = isElevated
+      ? await db.select({ project: projects })
+          .from(projects)
+          .where(eq(projects.workspaceId, membership.workspaceId))
+      : await db.select({ project: projects })
+          .from(projects)
+          .innerJoin(projectAccess, eq(projectAccess.projectId, projects.id))
+          .where(and(
+            eq(projects.workspaceId, membership.workspaceId),
+            eq(projectAccess.workspaceId, membership.workspaceId),
+            eq(projectAccess.userId, userId)
+          ))
+
     res.json({ projects: rows.map((row: any) => row.project) })
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch projects' })
