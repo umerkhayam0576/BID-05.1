@@ -133,7 +133,6 @@ export const PersonalAccountsView: React.FC = () => {
                     </span>
                   </div>
                 </div>
-              );
               })}
             </div>
           )}
