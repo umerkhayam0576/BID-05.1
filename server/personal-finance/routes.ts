@@ -6,6 +6,39 @@ import { getAuthenticatedUserId } from '../auth/middleware'
 
 const router = Router()
 
+router.get('/summary', async (req, res) => {
+  const currentUserId = userId(req)
+  const [accounts, transactions, assets, liabilities] = await Promise.all([
+    db.select().from(personalAccounts).where(and(eq(personalAccounts.userId, currentUserId), eq(personalAccounts.status, 'active'))),
+    db.select().from(personalTransactions).where(eq(personalTransactions.userId, currentUserId)),
+    db.select().from(personalAssets).where(and(eq(personalAssets.userId, currentUserId), eq(personalAssets.status, 'active'))),
+    db.select().from(personalLiabilities).where(and(eq(personalLiabilities.userId, currentUserId), eq(personalLiabilities.status, 'active'))),
+  ])
+
+  const openingBalance = accounts.reduce((total, account) => total + Number(account.openingBalance), 0)
+  const income = transactions
+    .filter((transaction) => transaction.transactionType === 'income')
+    .reduce((total, transaction) => total + Number(transaction.amount), 0)
+  const expenses = transactions
+    .filter((transaction) => transaction.transactionType === 'expense')
+    .reduce((total, transaction) => total + Number(transaction.amount), 0)
+  const cashBalance = openingBalance + income - expenses
+  const assetTotal = assets.reduce((total, asset) => total + Number(asset.currentValue), 0)
+  const liabilityTotal = liabilities.reduce((total, liability) => total + Number(liability.currentBalance), 0)
+
+  res.json({
+    cashBalance: cashBalance.toFixed(2),
+    income: income.toFixed(2),
+    expenses: expenses.toFixed(2),
+    assetTotal: assetTotal.toFixed(2),
+    liabilityTotal: liabilityTotal.toFixed(2),
+    netWorth: (cashBalance + assetTotal - liabilityTotal).toFixed(2),
+    accountCount: accounts.length,
+    assetCount: assets.length,
+    liabilityCount: liabilities.length,
+  })
+})
+
 function userId(req: Parameters<typeof getAuthenticatedUserId>[0]) {
   return getAuthenticatedUserId(req)
 }
