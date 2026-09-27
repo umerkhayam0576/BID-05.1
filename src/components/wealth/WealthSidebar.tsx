@@ -204,9 +204,9 @@ export const WealthSidebar: React.FC<WealthSidebarProps> = ({
               >
                 <div className="flex items-center gap-2 truncate">
                   <span className="material-symbols-outlined text-sm">payments</span>
-                  <span className="truncate">Bank & Liquid Cash</span>
+                  <span className="truncate">Personal Accounts</span>
                 </div>
-                <span className="font-mono text-xs text-[#dae2fd]">$100k</span>
+                <span className="font-mono text-[10px] text-[#86948a]">LIVE</span>
               </button>
 
               <button
