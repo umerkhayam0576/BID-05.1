@@ -111,8 +111,7 @@ workspaceRoutes.get('/projects', async (req, res) => {
           .where(and(
             eq(projects.workspaceId, membership.workspaceId),
             eq(projectAccess.workspaceId, membership.workspaceId),
-            eq(projectAccess.userId, userId),
-            eq(projectAccess.accessRole, membership.role)
+            eq(projectAccess.userId, userId)
           ))
 
     if (membership.role === 'client') {
