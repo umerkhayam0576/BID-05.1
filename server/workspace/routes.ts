@@ -98,8 +98,7 @@ workspaceRoutes.post('/sales/leads', async (req, res) => {
     const userId = requireUser(req)
     const { workspaceId, companyName, clientName, companyDescription, scopeOfWork, estimatedValue } = req.body as Record<string, string | undefined>
     if (!workspaceId || !companyName || !clientName || !scopeOfWork) return res.status(400).json({ error: 'workspaceId, companyName, clientName, and scopeOfWork are required' })
-    const allowed = await db.select({ id: memberships.id }).from(memberships).where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId), eq(memberships.status, 'active'))).limit(1)
-    if (!allowed.length) return res.status(403).json({ error: 'Workspace access denied' })
+    await requireWorkspaceMembership(req, workspaceId)
     const [lead] = await db.insert(salesLeads).values({ workspaceId, companyName, clientName, companyDescription, scopeOfWork, estimatedValue: estimatedValue || '0', ownerUserId: userId }).returning()
     res.status(201).json({ lead })
   } catch (error: any) {
@@ -112,6 +111,7 @@ workspaceRoutes.post('/attendance/clock-in', async (req, res) => {
     const userId = requireUser(req)
     const { workspaceId } = req.body as { workspaceId?: string }
     if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' })
+    await requireWorkspaceMembership(req, workspaceId)
     const today = new Date().toISOString().slice(0, 10)
     const [record] = await db.insert(attendanceRecords).values({ workspaceId, employeeUserId: userId, attendanceDate: today, clockIn: new Date() }).onConflictDoUpdate({ target: [attendanceRecords.workspaceId, attendanceRecords.employeeUserId, attendanceRecords.attendanceDate], set: { clockIn: new Date(), status: 'present' } }).returning()
     res.status(201).json({ attendance: record })
@@ -125,6 +125,9 @@ workspaceRoutes.post('/sales/leads/:leadId/activities', async (req, res) => {
     const userId = requireUser(req)
     const { workspaceId, activityType, subject, notes, scheduledAt } = req.body as Record<string, string | undefined>
     if (!workspaceId || !activityType || !subject) return res.status(400).json({ error: 'workspaceId, activityType, and subject are required' })
+    await requireWorkspaceMembership(req, workspaceId)
+    const [lead] = await db.select({ id: salesLeads.id }).from(salesLeads).where(and(eq(salesLeads.id, req.params.leadId), eq(salesLeads.workspaceId, workspaceId), eq(salesLeads.ownerUserId, userId))).limit(1)
+    if (!lead) return res.status(404).json({ error: 'Lead not found' })
     const [activity] = await db.insert(salesActivities).values({ workspaceId, leadId: req.params.leadId, ownerUserId: userId, activityType, subject, notes, scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined }).returning()
     res.status(201).json({ activity })
   } catch (error: any) {
