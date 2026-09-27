@@ -1,4 +1,4 @@
-import { boolean, date, jsonb, numeric, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, date, jsonb, numeric, pgTable, text, timestamp, uuid, unique } from 'drizzle-orm/pg-core'
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -64,6 +64,17 @@ export const projects = pgTable('app_projects', {
   ...timestamps,
 })
 
+export const projectAccess = pgTable('app_project_access', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  projectId: uuid('project_id').notNull(),
+  userId: text('user_id').notNull(),
+  accessRole: text('access_role').notNull(),
+  createdAt: timestamps.createdAt,
+}, (table) => ({
+  projectUserUnique: unique('app_project_access_project_user_unique').on(table.projectId, table.userId),
+}))
+
 export const reminders = pgTable('app_reminders', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull(),
@@ -117,4 +128,4 @@ export const auditLogs = pgTable('app_audit_logs', {
   createdAt: timestamps.createdAt,
 })
 
-export const appSchema = { workspaces, memberships, clients, employees, projects, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs }
+export const appSchema = { workspaces, memberships, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs }
