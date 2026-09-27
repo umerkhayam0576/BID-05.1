@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from 'react';
 
+type PersonalTransaction = {
+  accountId: string;
+  transactionType: string;
+  amount: string;
+};
+
 type PersonalAccount = {
   id: string;
   name: string;
@@ -13,6 +19,7 @@ const ACCOUNT_TYPES = ['cash', 'checking', 'savings', 'investment', 'other'];
 
 export const PersonalAccountsView: React.FC = () => {
   const [accounts, setAccounts] = useState<PersonalAccount[]>([]);
+  const [transactions, setTransactions] = useState<PersonalTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -22,9 +29,13 @@ export const PersonalAccountsView: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/personal-finance/accounts', { credentials: 'include' });
-      if (!response.ok) throw new Error('Could not load personal accounts');
-      setAccounts(await response.json());
+      const [accountsResponse, transactionsResponse] = await Promise.all([
+        fetch('/api/personal-finance/accounts', { credentials: 'include' }),
+        fetch('/api/personal-finance/transactions', { credentials: 'include' }),
+      ]);
+      if (!accountsResponse.ok || !transactionsResponse.ok) throw new Error('Could not load personal account data');
+      setAccounts(await accountsResponse.json());
+      setTransactions(await transactionsResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load personal accounts');
     } finally {
@@ -62,7 +73,13 @@ export const PersonalAccountsView: React.FC = () => {
     }
   };
 
-  const totalOpening = accounts.reduce((sum, account) => sum + Number(account.openingBalance || 0), 0);
+  const currentBalance = (account: PersonalAccount) => transactions.reduce((balance, transaction) => {
+    if (transaction.accountId !== account.id) return balance;
+    const amount = Number(transaction.amount || 0);
+    return transaction.transactionType === 'income' ? balance + amount : transaction.transactionType === 'expense' ? balance - amount : balance;
+  }, Number(account.openingBalance || 0));
+
+  const totalCurrent = accounts.reduce((sum, account) => sum + currentBalance(account), 0);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1400px] mx-auto">
@@ -71,11 +88,11 @@ export const PersonalAccountsView: React.FC = () => {
         <div className="mt-1 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-[#dae2fd]">Personal Accounts</h1>
-            <p className="mt-1 text-sm text-[#86948a]">Your personal cash, bank, savings, and other financial accounts. Company funds stay separate.</p>
+            <p className="mt-1 text-sm text-[#86948a]">Live balances calculated from opening balances plus recorded income and expenses. Company funds stay separate.</p>
           </div>
           <div className="rounded-lg border border-[#222a3d] bg-[#0b1326] px-4 py-3">
-            <span className="block text-[10px] uppercase font-mono text-[#86948a]">Opening balances</span>
-            <span className="block mt-1 text-lg font-mono font-bold text-[#4edea3]">${totalOpening.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+            <span className="block text-[10px] uppercase font-mono text-[#86948a]">Current balances</span>
+            <span className="block mt-1 text-lg font-mono font-bold text-[#4edea3]">${totalCurrent.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
       </section>
@@ -96,8 +113,9 @@ export const PersonalAccountsView: React.FC = () => {
             <div className="p-8 text-sm text-[#86948a]">No personal accounts yet. Add your first account on the right.</div>
           ) : (
             <div className="divide-y divide-[#222a3d]">
-              {accounts.map((account) => (
-                <div key={account.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              {accounts.map((account) => {
+                const balance = currentBalance(account);
+                return <div key={account.id} className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="material-symbols-outlined text-[#4edea3]">account_balance</span>
@@ -106,13 +124,17 @@ export const PersonalAccountsView: React.FC = () => {
                     <p className="mt-1 text-xs font-mono text-[#86948a] uppercase">{account.accountType} · {account.currency} · {account.status}</p>
                   </div>
                   <div className="text-left sm:text-right">
-                    <span className="block text-[10px] uppercase font-mono text-[#86948a]">Opening balance</span>
+                    <span className="block text-[10px] uppercase font-mono text-[#86948a]">Current balance</span>
                     <span className="block mt-1 text-lg font-mono font-bold text-[#dae2fd]">
-                      {account.currency} {Number(account.openingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {account.currency} {balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                    <span className="block mt-0.5 text-[10px] font-mono text-[#86948a]">
+                      Opening {Number(account.openingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </section>
