@@ -51,9 +51,24 @@ router.get('/transactions', async (req, res) => {
 
 router.post('/transactions', async (req, res) => {
   try {
+    const currentUserId = userId(req)
+    const accountId = textValue(req.body?.accountId, 'accountId')
+    const [account] = await db.select({ id: personalAccounts.id })
+      .from(personalAccounts)
+      .where(and(
+        eq(personalAccounts.id, accountId),
+        eq(personalAccounts.userId, currentUserId),
+        eq(personalAccounts.status, 'active'),
+      ))
+      .limit(1)
+
+    if (!account) {
+      return res.status(403).json({ error: 'Personal account access denied' })
+    }
+
     const [transaction] = await db.insert(personalTransactions).values({
-      userId: userId(req),
-      accountId: textValue(req.body?.accountId, 'accountId'),
+      userId: currentUserId,
+      accountId,
       transactionType: textValue(req.body?.transactionType, 'transactionType'),
       category: typeof req.body?.category === 'string' ? req.body.category : null,
       description: typeof req.body?.description === 'string' ? req.body.description : null,
