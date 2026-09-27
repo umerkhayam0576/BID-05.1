@@ -18,6 +18,7 @@ import { PersonalFinanceHub } from './components/finance/PersonalFinanceHub';
 import { ProjectTrackingOperations } from './components/ProjectTrackingOperations';
 import type { OutsourcedProjectAssignment } from './components/OutsourcedProjectModal';
 import { WorkflowAutomationHub } from './components/workflow/WorkflowAutomationHub';
+import { LoginScreen } from './components/auth/LoginScreen';
 
 // Dedicated Module Views
 import { OperationsOverviewView } from './components/views/OperationsOverviewView';
@@ -90,7 +91,15 @@ import { ExportPdfModal } from './components/ExportPdfModal';
 import { AuditLogModal } from './components/AuditLogModal';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 
+type AuthUser = { id: string; email: string; displayName: string | null };
+
 export default function App() {
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  if (!authUser) {
+    return <LoginScreen onAuthenticated={setAuthUser} />;
+  }
+
   // Workspace state: defaults to pre-con-estimating (Enterprise Operations)
   const [activeWorkspace, setActiveWorkspace] = useState<'personal-finance' | 'pre-con-estimating'>(() => {
     const saved = localStorage.getItem('bid_exact_active_workspace');
