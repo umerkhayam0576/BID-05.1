@@ -203,7 +203,7 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
                 <span className="material-symbols-outlined text-[#4edea3] text-sm">account_balance</span>
               </div>
               <div className="font-mono text-xl text-[#dae2fd] font-bold tracking-tight">
-                {mask(metrics.personalCash)}
+                {mask(personalCash)}
               </div>
               <p className="text-xs text-[#bbcabf] line-clamp-2">
                 Liquid bank accounts & personal reserves (Unencumbered)
@@ -211,12 +211,12 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
             </div>
             <div className="mt-3 pt-2 space-y-1 bg-[#060e20]/80 p-2 rounded border border-[#222a3d] text-xs font-mono">
               <div className="flex justify-between items-center text-[#dae2fd]">
-                <span className="text-[#bbcabf]">Chase Checking</span>
-                <span>{mask(metrics.chaseChecking)}</span>
+                <span className="text-[#bbcabf]">All personal accounts</span>
+                <span>{personalSummary?.accountCount ?? 0}</span>
               </div>
               <div className="flex justify-between items-center text-[#dae2fd]">
-                <span className="text-[#bbcabf]">HYSA (5.1% APY)</span>
-                <span>{mask(metrics.hysa)}</span>
+                <span className="text-[#bbcabf]">Opening balance + net activity</span>
+                <span>{personalSummary ? mask(Number(personalSummary.cashBalance)) : mask(personalCash)}</span>
               </div>
               <div className="pt-1 border-t border-[#222a3d]">
                 <span className="font-mono text-[9px] text-[#4edea3] uppercase font-bold block">
@@ -328,16 +328,16 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
                 <span className="material-symbols-outlined text-[#4edea3] text-sm">diamond</span>
               </div>
               <div className="font-mono text-xl text-[#dae2fd] font-bold tracking-tight">
-                {mask(metrics.personalNetWorth)}
+                {mask(personalNetWorth)}
               </div>
               <p className="text-xs text-[#bbcabf] line-clamp-2">
-                Cash ($100k) + Inv ($200k) + Prop ($300k) + Entities ($500k) - Liab ($100k)
+                Cash ({personalSummary ? mask(Number(personalSummary.cashBalance)) : mask(personalCash)}) + Assets ({personalSummary ? mask(Number(personalSummary.assetTotal)) : "$0.00"}) - Liabilities ({personalSummary ? mask(Number(personalSummary.liabilityTotal)) : "$0.00"})
               </p>
             </div>
             <div className="mt-3 pt-2 bg-[#060e20]/80 p-2 rounded border border-[#222a3d] space-y-1 font-mono text-xs">
               <div className="flex items-center justify-between text-[#4edea3]">
-                <span>+11.4% YoY</span>
-                <span>+$102,500</span>
+                <span>{personalSummary ? `${personalSummary.income ? "+" : ""}${mask(Number(personalSummary.income))} income` : "Live personal income"}</span>
+                <span>{personalSummary ? `${personalSummary.expenses ? "-" : ""}${mask(Number(personalSummary.expenses))} expenses` : "Live personal expenses"}</span>
               </div>
               <span className="text-[9px] text-[#dae2fd] uppercase block font-bold">
                 Consolidated Total Wealth Balance
@@ -579,14 +579,14 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
               <div className="bg-[#171f33] p-3 rounded-lg space-y-1 border border-[#222a3d]">
                 <div className="flex justify-between items-center">
                   <span className="text-[#dae2fd]">Personal Operating Inflow</span>
-                  <span className="font-bold text-[#4edea3]">+$18,500/mo</span>
+                  <span className="font-bold text-[#4edea3]">+{personalSummary ? mask(Number(personalSummary.income)) : "$0.00"}</span>
                 </div>
                 <div className="w-full bg-[#060e20] h-1.5 rounded-full overflow-hidden">
                   <div className="bg-[#4edea3] h-full w-3/4 rounded-full"></div>
                 </div>
                 <div className="flex justify-between text-[#bbcabf] text-[10px] pt-1">
-                  <span>Salary: $14.0k/mo (Bid Exact)</span>
-                  <span>Advisory: $4.5k/mo</span>
+                  <span>Personal income recorded</span>
+                  <span>{personalSummary ? `${personalSummary.accountCount} account${personalSummary.accountCount === 1 ? "" : "s"}` : "Loading..."}</span>
                 </div>
               </div>
 
@@ -610,13 +610,13 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
               <div className="bg-[#171f33] p-3 rounded-lg space-y-1 border border-[#222a3d]">
                 <div className="flex justify-between items-center">
                   <span className="text-[#dae2fd]">Capital Injections (Outflow)</span>
-                  <span className="font-bold text-[#ffb2b7]">-{mask(totalContributed)}</span>
+                  <span className="font-bold text-[#ffb2b7]">-{personalSummary ? mask(Number(personalSummary.expenses)) : "$0.00"}</span>
                 </div>
                 <div className="w-full bg-[#060e20] h-1.5 rounded-full overflow-hidden">
                   <div className="bg-[#ff7886] h-full w-4/5 rounded-full"></div>
                 </div>
                 <div className="text-[#bbcabf] text-[10px] pt-1">
-                  <span>Cumulative Principal Subscribed to Entities</span>
+                  <span>Personal expenses recorded in the database</span>
                 </div>
               </div>
 
@@ -627,7 +627,7 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
                   <span className="text-[#bbcabf]">Variable</span>
                 </div>
                 <div className="text-[#bbcabf] text-[10px]">
-                  <span>Primary Mortgage • Q3 Estimated Tax • Private Reserve</span>
+                  <span>Active liabilities: {personalSummary?.liabilityCount ?? 0} • Assets: {personalSummary?.assetCount ?? 0}</span>
                 </div>
               </div>
             </div>
