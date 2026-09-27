@@ -5,6 +5,36 @@ const timestamps = {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }
 
+export const users = pgTable('app_users', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  email: text('email').notNull(),
+  displayName: text('display_name').notNull(),
+  status: text('status').default('active').notNull(),
+  createdAt: timestamps.createdAt,
+  updatedAt: timestamps.updatedAt,
+}, (table) => ({
+  emailUnique: unique('app_users_email_unique').on(table.email),
+}))
+
+export const userCredentials = pgTable('app_user_credentials', {
+  userId: uuid('user_id').primaryKey(),
+  passwordHash: text('password_hash').notNull(),
+  passwordUpdatedAt: timestamp('password_updated_at', { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamps.createdAt,
+  updatedAt: timestamps.updatedAt,
+})
+
+export const userSessions = pgTable('app_user_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamps.createdAt,
+}, (table) => ({
+  tokenHashUnique: unique('app_user_sessions_token_hash_unique').on(table.tokenHash),
+}))
+
 export const workspaces = pgTable('app_workspaces', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
@@ -128,4 +158,4 @@ export const auditLogs = pgTable('app_audit_logs', {
   createdAt: timestamps.createdAt,
 })
 
-export const appSchema = { workspaces, memberships, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs }
+export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs }
