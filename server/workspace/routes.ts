@@ -105,8 +105,37 @@ workspaceRoutes.get('/projects', async (req, res) => {
           .where(and(
             eq(projects.workspaceId, membership.workspaceId),
             eq(projectAccess.workspaceId, membership.workspaceId),
-            eq(projectAccess.userId, userId)
+            eq(projectAccess.userId, userId),
+            eq(projectAccess.accessRole, membership.role)
           ))
+
+    if (membership.role === 'client') {
+      return res.json({
+        projects: rows.map((row: any) => ({
+          id: row.project.id,
+          name: row.project.name,
+          projectNumber: row.project.projectNumber,
+          status: row.project.status,
+          startDate: row.project.startDate,
+          dueDate: row.project.dueDate,
+          metadata: row.project.metadata,
+        }))
+      })
+    }
+
+    if (membership.role === 'employee') {
+      return res.json({
+        projects: rows.map((row: any) => ({
+          id: row.project.id,
+          name: row.project.name,
+          projectNumber: row.project.projectNumber,
+          status: row.project.status,
+          startDate: row.project.startDate,
+          dueDate: row.project.dueDate,
+          metadata: row.project.metadata,
+        }))
+      })
+    }
 
     res.json({ projects: rows.map((row: any) => row.project) })
   } catch (error: any) {
