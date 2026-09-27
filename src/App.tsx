@@ -93,13 +93,7 @@ import { CommandPaletteModal } from './components/CommandPaletteModal';
 
 type AuthUser = { id: string; email: string; displayName: string | null };
 
-export default function App() {
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-
-  if (!authUser) {
-    return <LoginScreen onAuthenticated={setAuthUser} />;
-  }
-
+function AuthenticatedApp() {
   // Workspace state: defaults to pre-con-estimating (Enterprise Operations)
   const [activeWorkspace, setActiveWorkspace] = useState<'personal-finance' | 'pre-con-estimating'>(() => {
     const saved = localStorage.getItem('bid_exact_active_workspace');
@@ -963,4 +957,14 @@ export default function App() {
       />
     </div>
   );
+}
+
+export default function App() {
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  if (!authUser) {
+    return <LoginScreen onAuthenticated={setAuthUser} />;
+  }
+
+  return <AuthenticatedApp />;
 }
