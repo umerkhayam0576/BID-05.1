@@ -117,14 +117,14 @@ workspaceRoutes.get('/projects', async (req, res) => {
 workspaceRoutes.get('/reminders', async (req, res) => {
   try {
     const userId = requireUser(req)
-    const membershipRows = await db.select({ role: memberships.role })
-      .from(memberships)
-      .where(and(eq(memberships.workspaceId, req.query.workspaceId as string), eq(memberships.userId, userId), eq(memberships.status, 'active')))
-      .limit(1)
-    if (!membershipRows[0]) return res.status(403).json({ error: 'Workspace access denied' })
-
     const workspaceId = req.query.workspaceId
     if (typeof workspaceId !== 'string' || !workspaceId.trim()) return res.status(400).json({ error: 'workspaceId is required' })
+
+    const membershipRows = await db.select({ role: memberships.role })
+      .from(memberships)
+      .where(and(eq(memberships.workspaceId, workspaceId), eq(memberships.userId, userId), eq(memberships.status, 'active')))
+      .limit(1)
+    if (!membershipRows[0]) return res.status(403).json({ error: 'Workspace access denied' })
 
     const elevatedRoles = ['owner', 'admin', 'manager', 'sales', 'finance', 'hr']
     const isElevated = elevatedRoles.includes(membershipRows[0].role)
