@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CompanyEntity,
   KeyWealthMetrics,
@@ -56,6 +56,40 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
   const totalUnpaid = companies.reduce((acc, c) => acc + c.distributionsPending, 0);
   const totalCompanyInterests = companies.reduce((acc, c) => acc + c.equityPositionValue, 0);
 
+  const [personalSummary, setPersonalSummary] = useState<{
+    cashBalance: string;
+    income: string;
+    expenses: string;
+    assetTotal: string;
+    liabilityTotal: string;
+    netWorth: string;
+    accountCount: number;
+    assetCount: number;
+    liabilityCount: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/personal-finance/summary', { credentials: 'include' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Personal finance summary request failed');
+        return response.json();
+      })
+      .then((data) => {
+        if (!cancelled) setPersonalSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setPersonalSummary(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const personalCash = personalSummary ? Number(personalSummary.cashBalance) : metrics.personalCash;
+  const personalNetWorth = personalSummary ? Number(personalSummary.netWorth) : metrics.personalNetWorth;
+
   const pendingGov = governanceRequests[0] || null;
 
   return (
@@ -95,12 +129,12 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg border border-[#222a3d] bg-[#131b2e] px-3 py-2.5">
                 <span className="block font-mono text-[9px] uppercase tracking-wider text-[#91a0c5]">Liquid cash</span>
-                <span className="mt-1 block font-mono text-sm font-bold text-[#4edea3]">{mask(metrics.personalCash)}</span>
+                <span className="mt-1 block font-mono text-sm font-bold text-[#4edea3]">{mask(personalCash)}</span>
                 <span className="mt-0.5 block text-[10px] text-[#91a0c5]">Personal only</span>
               </div>
               <div className="rounded-lg border border-[#222a3d] bg-[#131b2e] px-3 py-2.5">
                 <span className="block font-mono text-[9px] uppercase tracking-wider text-[#91a0c5]">Net position</span>
-                <span className="mt-1 block font-mono text-sm font-bold text-[#dae2fd]">{mask(metrics.personalNetWorth)}</span>
+                <span className="mt-1 block font-mono text-sm font-bold text-[#dae2fd]">{mask(personalNetWorth)}</span>
                 <span className="mt-0.5 block text-[10px] text-[#91a0c5]">Across all books</span>
               </div>
               <div className="rounded-lg border border-[#222a3d] bg-[#131b2e] px-3 py-2.5">
