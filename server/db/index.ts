@@ -19,17 +19,22 @@ if (!isPlaceholderDb) {
   try {
     const testPool = new Pool({ connectionString: rawDbUrl, connectionTimeoutMillis: 2000 })
     testPool.on('error', (err) => {
-      console.warn('[AI Studio] PostgreSQL pool error, switching to mock store:', err.message)
-      realDb = null
-      realPool = null
+      console.error('[db] PostgreSQL pool error:', err.message)
+      // Never switch an authenticated production application to the mock store.
+      if (process.env.NODE_ENV === 'production') {
+        process.exitCode = 1
+      }
     })
     realPool = testPool
     realDb = drizzle(realPool, { schema })
   } catch (err) {
-    console.warn('[AI Studio] PostgreSQL initialization failed, using mock data layer:', err)
+    console.error('[db] PostgreSQL initialization failed:', err)
   }
 } else {
-  console.log('[AI Studio] Running in resilient mock store mode (PostgreSQL placeholder detected or not configured)')
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('DATABASE_URL must be configured in production')
+  }
+  console.log('[db] Development mock store enabled because DATABASE_URL is not configured')
 }
 
 export const pool = realPool || (new Proxy({} as Pool, {
