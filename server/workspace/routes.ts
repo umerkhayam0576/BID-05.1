@@ -68,11 +68,17 @@ workspaceRoutes.get('/clients', async (req, res) => {
         .innerJoin(projectAccess, eq(projectAccess.projectId, projects.id))
         .where(and(
           eq(clients.workspaceId, membership.workspaceId),
+          eq(projects.workspaceId, membership.workspaceId),
           eq(projectAccess.workspaceId, membership.workspaceId),
           eq(projectAccess.userId, userId)
         ))
       const uniqueClients = Array.from(new Map(rows.map((row: any) => [row.client.id, row.client])).values())
-      return res.json({ clients: uniqueClients.map((client: any) => ({ id: client.id, status: client.status })) })
+      return res.json({
+        clients: uniqueClients.map((client: any) => ({
+          id: client.id,
+          status: client.status,
+        }))
+      })
     }
 
     const rows = await db.select({ client: clients })
