@@ -193,6 +193,48 @@ workspaceRoutes.post('/sales/leads', async (req, res) => {
   }
 })
 
+workspaceRoutes.post('/project-access', async (req, res) => {
+  try {
+    const { workspaceId, projectId, userId: targetUserId, accessRole } = req.body as Record<string, string | undefined>
+    if (!workspaceId || !projectId || !targetUserId || !accessRole) {
+      return res.status(400).json({ error: 'workspaceId, projectId, userId, and accessRole are required' })
+    }
+
+    await requireWorkspaceRole(req, workspaceId, ['owner', 'admin', 'manager'])
+
+    const [project] = await db.select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.id, projectId), eq(projects.workspaceId, workspaceId)))
+      .limit(1)
+    if (!project) return res.status(404).json({ error: 'Project not found' })
+
+    const [targetMembership] = await db.select({ userId: memberships.userId })
+      .from(memberships)
+      .where(and(
+        eq(memberships.workspaceId, workspaceId),
+        eq(memberships.userId, targetUserId),
+        eq(memberships.status, 'active')
+      ))
+      .limit(1)
+    if (!targetMembership) return res.status(404).json({ error: 'Target user is not an active workspace member' })
+
+    const [access] = await db.insert(projectAccess).values({
+      workspaceId,
+      projectId,
+      userId: targetUserId,
+      accessRole,
+    }).onConflictDoUpdate({
+      target: [projectAccess.projectId, projectAccess.userId],
+      set: { workspaceId, accessRole },
+    }).returning()
+
+    res.status(201).json({ access })
+  } catch (error: any) {
+    const status = error?.status === 403 ? 403 : 500
+    res.status(status).json({ error: error.message || 'Failed to assign project access' })
+  }
+})
+
 workspaceRoutes.post('/attendance/clock-in', async (req, res) => {
   try {
     const userId = requireUser(req)
