@@ -10,6 +10,15 @@ function userId(req: express.Request) {
   return getAuthenticatedUserId(req)
 }
 
+portalRoutes.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'bid-exact-portal',
+    authenticated: true,
+    userId: userId(req),
+  })
+})
+
 portalRoutes.get('/entities', async (req, res) => {
   try {
     const rows = await db.select().from(portalEntities)
