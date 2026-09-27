@@ -1,8 +1,10 @@
 import type { NextFunction, Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gt, isNull } from 'drizzle-orm'
 import { db } from '../db'
-import { memberships } from '../db/app-schema'
+import { memberships, userSessions } from '../db/app-schema'
+import { readCookie } from './routes'
+import { hashSessionToken, SESSION_COOKIE_NAME } from './service'
 
 const DEV_HEADER_AUTH = process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_HEADER_AUTH !== 'false'
 
@@ -35,7 +37,7 @@ export function getAuthenticatedUserId(req: Request): string {
   return userId
 }
 
-export function requireAuthentication(req: Request, res: Response, next: NextFunction) {
+export async function requireAuthentication(req: Request, res: Response, next: NextFunction) {
   try {
     const authorization = req.header('authorization')
 
@@ -47,6 +49,23 @@ export function requireAuthentication(req: Request, res: Response, next: NextFun
       }
       req.auth = { userId: String(payload.sub), role: payload.role as AppRole | undefined }
       return next()
+    }
+
+    const sessionToken = readCookie(req, SESSION_COOKIE_NAME)
+    if (sessionToken) {
+      const [session] = await db.select({ userId: userSessions.userId })
+        .from(userSessions)
+        .where(and(
+          eq(userSessions.tokenHash, hashSessionToken(sessionToken)),
+          isNull(userSessions.revokedAt),
+          gt(userSessions.expiresAt, new Date()),
+        ))
+        .limit(1)
+
+      if (session) {
+        req.auth = { userId: session.userId }
+        return next()
+      }
     }
 
     if (DEV_HEADER_AUTH) {
