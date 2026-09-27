@@ -1,22 +1,25 @@
 import { Router } from 'express'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { db } from '../db'
+import { getAuthenticatedUserId, getMembership, requireWorkspaceMembership } from '../auth/middleware'
 import { attendanceRecords, clients, employees, memberships, notifications, projects, reminders, salesActivities, salesLeads } from '../db/app-schema'
 
 export const workspaceRoutes = Router()
 
-function requireUser(req: { header(name: string): string | undefined }) {
-  const userId = req.header('x-user-id')
-  if (!userId) throw new Error('Authentication required')
-  return userId
+function requireUser(req: import('express').Request) {
+  return getAuthenticatedUserId(req)
 }
 
-workspaceRoutes.use((req, res, next) => {
+workspaceRoutes.use((_req, _res, next) => next())
+
+workspaceRoutes.get('/context/:workspaceId', async (req, res) => {
   try {
-    requireUser(req)
-    next()
-  } catch {
-    res.status(401).json({ error: 'Authentication required' })
+    const userId = requireUser(req)
+    const membership = await getMembership(userId, req.params.workspaceId)
+    if (!membership) return res.status(403).json({ error: 'Workspace access denied' })
+    res.json({ workspaceId: membership.workspaceId, userId: membership.userId, role: membership.role })
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to resolve workspace context' })
   }
 })
 
