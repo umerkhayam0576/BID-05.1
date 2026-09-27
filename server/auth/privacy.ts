@@ -1,27 +1,19 @@
 import type { AppRole } from './middleware'
 
-export type PrivacyContext = {
-  userId: string
-  role: AppRole
-}
-
 export function toAppRole(role: string): AppRole {
   const allowed: AppRole[] = ['owner', 'admin', 'manager', 'sales', 'finance', 'hr', 'employee', 'client']
   return allowed.includes(role as AppRole) ? role as AppRole : 'employee'
 }
 
 export function maskPersonName(name: string): string {
-  const parts = name.trim().split(/\\s+/).filter(Boolean)
+  const parts = name.trim().split(/\s+/).filter(Boolean)
   if (!parts.length) return 'Employee'
   return parts.map((part) => part[0]).join('').toUpperCase().slice(0, 3)
 }
 
 export function projectClientView(client: any, role: AppRole) {
   if (role === 'client' || role === 'employee') {
-    return {
-      id: client.id,
-      status: client.status,
-    }
+    return { id: client.id, status: client.status }
   }
 
   return {
