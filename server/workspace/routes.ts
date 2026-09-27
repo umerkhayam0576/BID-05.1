@@ -117,7 +117,32 @@ workspaceRoutes.get('/projects', async (req, res) => {
 workspaceRoutes.get('/reminders', async (req, res) => {
   try {
     const userId = requireUser(req)
-    const rows = await db.select({ reminder: reminders }).from(reminders).innerJoin(memberships, eq(memberships.workspaceId, reminders.workspaceId)).where(and(eq(memberships.userId, userId), eq(memberships.status, 'active'))).orderBy(reminders.dueAt)
+    const membershipRows = await db.select({ role: memberships.role })
+      .from(memberships)
+      .where(and(eq(memberships.workspaceId, req.query.workspaceId as string), eq(memberships.userId, userId), eq(memberships.status, 'active')))
+      .limit(1)
+    if (!membershipRows[0]) return res.status(403).json({ error: 'Workspace access denied' })
+
+    const workspaceId = req.query.workspaceId
+    if (typeof workspaceId !== 'string' || !workspaceId.trim()) return res.status(400).json({ error: 'workspaceId is required' })
+
+    const elevatedRoles = ['owner', 'admin', 'manager', 'sales', 'finance', 'hr']
+    const isElevated = elevatedRoles.includes(membershipRows[0].role)
+
+    const rows = isElevated
+      ? await db.select({ reminder: reminders })
+          .from(reminders)
+          .where(eq(reminders.workspaceId, workspaceId))
+          .orderBy(reminders.dueAt)
+      : await db.select({ reminder: reminders })
+          .from(reminders)
+          .innerJoin(projectAccess, eq(projectAccess.projectId, reminders.projectId))
+          .where(and(
+            eq(reminders.workspaceId, workspaceId),
+            eq(projectAccess.workspaceId, workspaceId),
+            eq(projectAccess.userId, userId)
+          ))
+          .orderBy(reminders.dueAt)
     res.json({ reminders: rows.map((row: any) => row.reminder) })
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch reminders' })
