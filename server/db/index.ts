@@ -463,6 +463,9 @@ export const db = new Proxy(mockDb, {
     if (realDb && typeof realDb[prop] === 'function') {
       return (...args: any[]) => realDb[prop](...args)
     }
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Database is unavailable')
+    }
     return Reflect.get(target, prop, receiver)
   },
 })
