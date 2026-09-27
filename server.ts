@@ -8,6 +8,7 @@ import { stripeRoutes } from './server/stripe/routes'
 import { portalRoutes } from './server/portal/routes'
 import { workspaceRoutes } from './server/workspace/routes'
 import { requireAuthentication } from './server/auth/middleware'
+import { entityRoutes } from './server/entity/routes'
 
 export function createApp() {
   const app = express()
@@ -37,6 +38,7 @@ export function createApp() {
 
   app.use('/api/auth', authRoutes)
   app.use('/api/stripe', stripeRoutes)
+  app.use('/api/entities', requireAuthentication, entityRoutes)
 
   // All authenticated application APIs must pass through request authentication.
   // The x-user-id header remains supported only in non-production development when explicitly enabled.
