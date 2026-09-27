@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { and, desc, eq, isNull, or, inArray } from 'drizzle-orm'
 import { db } from '../db'
-import { getAuthenticatedUserId, getMembership, requireWorkspaceMembership } from '../auth/middleware'
+import { getAuthenticatedUserId, getMembership, requireWorkspaceMembership, requireWorkspaceRole } from '../auth/middleware'
 import { attendanceRecords, clients, employees, memberships, notifications, projects, projectAccess, reminders, salesActivities, salesLeads } from '../db/app-schema'
 
 export const workspaceRoutes = Router()
@@ -185,7 +185,7 @@ workspaceRoutes.post('/sales/leads', async (req, res) => {
     const userId = requireUser(req)
     const { workspaceId, companyName, clientName, companyDescription, scopeOfWork, estimatedValue } = req.body as Record<string, string | undefined>
     if (!workspaceId || !companyName || !clientName || !scopeOfWork) return res.status(400).json({ error: 'workspaceId, companyName, clientName, and scopeOfWork are required' })
-    await requireWorkspaceMembership(req, workspaceId)
+    await requireWorkspaceRole(req, workspaceId, ['owner', 'admin', 'manager', 'sales'])
     const [lead] = await db.insert(salesLeads).values({ workspaceId, companyName, clientName, companyDescription, scopeOfWork, estimatedValue: estimatedValue || '0', ownerUserId: userId }).returning()
     res.status(201).json({ lead })
   } catch (error: any) {
@@ -212,7 +212,7 @@ workspaceRoutes.post('/sales/leads/:leadId/activities', async (req, res) => {
     const userId = requireUser(req)
     const { workspaceId, activityType, subject, notes, scheduledAt } = req.body as Record<string, string | undefined>
     if (!workspaceId || !activityType || !subject) return res.status(400).json({ error: 'workspaceId, activityType, and subject are required' })
-    await requireWorkspaceMembership(req, workspaceId)
+    await requireWorkspaceRole(req, workspaceId, ['owner', 'admin', 'manager', 'sales'])
     const [lead] = await db.select({ id: salesLeads.id }).from(salesLeads).where(and(eq(salesLeads.id, req.params.leadId), eq(salesLeads.workspaceId, workspaceId), eq(salesLeads.ownerUserId, userId))).limit(1)
     if (!lead) return res.status(404).json({ error: 'Lead not found' })
     const [activity] = await db.insert(salesActivities).values({ workspaceId, leadId: req.params.leadId, ownerUserId: userId, activityType, subject, notes, scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined }).returning()
