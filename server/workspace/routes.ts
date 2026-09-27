@@ -118,7 +118,18 @@ workspaceRoutes.get('/reminders', async (req, res) => {
 workspaceRoutes.get('/employees', async (req, res) => {
   try {
     const userId = requireUser(req)
-    const rows = await db.select({ employee: employees }).from(employees).innerJoin(memberships, eq(memberships.workspaceId, employees.workspaceId)).where(and(eq(memberships.userId, userId), eq(memberships.status, 'active')))
+    const rows = await db.select({ employee: employees, role: memberships.role }).from(employees).innerJoin(memberships, eq(memberships.workspaceId, employees.workspaceId)).where(and(eq(memberships.userId, userId), eq(memberships.status, 'active')))
+    const privateRoles = ['client', 'employee']
+    if (rows.some((row: any) => privateRoles.includes(row.role))) {
+      return res.json({ employees: rows.map((row: any) => ({
+        id: row.employee.id,
+        employeeNumber: row.employee.employeeNumber,
+        displayName: row.employee.name.trim().split(/\\s+/).filter(Boolean).map((part: string) => part[0]).join('').toUpperCase().slice(0, 3) || 'Employee',
+        department: row.employee.department,
+        title: row.employee.title,
+        status: row.employee.status,
+      })) })
+    }
     res.json({ employees: rows.map((row: any) => row.employee) })
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch employees' })
