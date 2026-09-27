@@ -43,7 +43,7 @@ export const workspaces = pgTable('app_workspaces', {
   industryType: text('industry_type').default('services').notNull(),
   country: text('country'),
   currency: text('currency').default('USD').notNull(),
-  createdByUserId: text('created_by_user_id').notNull(),
+  createdByUserId: text('created_by_user_id'),
   status: text('status').default('active').notNull(),
   ...timestamps,
 }, (table) => ({
