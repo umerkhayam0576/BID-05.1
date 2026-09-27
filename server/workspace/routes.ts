@@ -360,7 +360,20 @@ workspaceRoutes.post('/sales/leads/:leadId/activities', async (req, res) => {
     const { workspaceId, activityType, subject, notes, scheduledAt } = req.body as Record<string, string | undefined>
     if (!workspaceId || !activityType || !subject) return res.status(400).json({ error: 'workspaceId, activityType, and subject are required' })
     await requireWorkspaceRole(req, workspaceId, ['owner', 'admin', 'manager', 'sales'])
-    const [lead] = await db.select({ id: salesLeads.id }).from(salesLeads).where(and(eq(salesLeads.id, req.params.leadId), eq(salesLeads.workspaceId, workspaceId), eq(salesLeads.ownerUserId, userId))).limit(1)
+    const membership = await getMembership(userId, workspaceId)
+    if (!membership) return res.status(403).json({ error: 'Workspace access denied' })
+
+    const isElevated = ['owner', 'admin', 'manager'].includes(membership.role)
+    const leadConditions = [
+      eq(salesLeads.id, req.params.leadId),
+      eq(salesLeads.workspaceId, workspaceId),
+    ]
+    if (!isElevated) leadConditions.push(eq(salesLeads.ownerUserId, userId))
+
+    const [lead] = await db.select({ id: salesLeads.id })
+      .from(salesLeads)
+      .where(and(...leadConditions))
+      .limit(1)
     if (!lead) return res.status(404).json({ error: 'Lead not found' })
     const [activity] = await db.insert(salesActivities).values({ workspaceId, leadId: req.params.leadId, ownerUserId: userId, activityType, subject, notes, scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined }).returning()
     res.status(201).json({ activity })
