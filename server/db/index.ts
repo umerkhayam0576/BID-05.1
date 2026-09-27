@@ -445,23 +445,18 @@ function createMockDb(): any {
 
 const mockDb = createMockDb()
 
+// Production must use PostgreSQL. The in-memory store is intentionally development-only.
+// This prevents an unavailable/misconfigured database from silently serving stale or cross-user mock data.
+if (process.env.NODE_ENV === 'production' && !realDb) {
+  throw new Error('DATABASE_URL must be configured and reachable in production')
+}
+
+const mockDb = createMockDb()
+
 export const db = new Proxy(mockDb, {
   get(target, prop, receiver) {
     if (realDb && typeof realDb[prop] === 'function') {
-      return (...args: any[]) => {
-        try {
-          const res = realDb[prop](...args)
-          if (res && typeof res.then === 'function') {
-            return res.catch((err: any) => {
-              console.warn(`[AI Studio] Real DB call failed for ${String(prop)}, falling back to in-memory store:`, err.message)
-              return (target as any)[prop](...args)
-            })
-          }
-          return res
-        } catch {
-          return (target as any)[prop](...args)
-        }
-      }
+      return (...args: any[]) => realDb[prop](...args)
     }
     return Reflect.get(target, prop, receiver)
   },
