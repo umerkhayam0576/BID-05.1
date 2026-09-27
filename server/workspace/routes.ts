@@ -187,19 +187,51 @@ workspaceRoutes.get('/reminders', async (req, res) => {
 workspaceRoutes.get('/employees', async (req, res) => {
   try {
     const userId = requireUser(req)
-    const rows = await db.select({ employee: employees, role: memberships.role }).from(employees).innerJoin(memberships, eq(memberships.workspaceId, employees.workspaceId)).where(and(eq(memberships.userId, userId), eq(memberships.status, 'active')))
-    const privateRoles = ['client', 'employee']
-    if (rows.some((row: any) => privateRoles.includes(row.role))) {
-      return res.json({ employees: rows.map((row: any) => ({
-        id: row.employee.id,
-        employeeNumber: row.employee.employeeNumber,
-        displayName: row.employee.name.trim().split(/\\s+/).filter(Boolean).map((part: string) => part[0]).join('').toUpperCase().slice(0, 3) || 'Employee',
-        department: row.employee.department,
-        title: row.employee.title,
-        status: row.employee.status,
-      })) })
+    const workspaceId = req.query.workspaceId
+    if (typeof workspaceId !== 'string' || !workspaceId.trim()) {
+      return res.status(400).json({ error: 'workspaceId is required' })
     }
-    res.json({ employees: rows.map((row: any) => row.employee) })
+
+    const membership = await getMembership(userId, workspaceId)
+    if (!membership) return res.status(403).json({ error: 'Workspace access denied' })
+
+    const elevatedRoles = ['owner', 'admin', 'manager', 'hr']
+    if (elevatedRoles.includes(membership.role)) {
+      const rows = await db.select({ employee: employees })
+        .from(employees)
+        .where(and(
+          eq(employees.workspaceId, workspaceId),
+          eq(employees.status, 'active')
+        ))
+      return res.json({ employees: rows.map((row: any) => row.employee) })
+    }
+
+    const rows = await db.select({ employee: employees })
+      .from(employees)
+      .innerJoin(projectAccess, eq(projectAccess.userId, employees.userId))
+      .innerJoin(projects, eq(projects.id, projectAccess.projectId))
+      .where(and(
+        eq(employees.workspaceId, workspaceId),
+        eq(employees.status, 'active'),
+        eq(projects.workspaceId, workspaceId),
+        eq(projectAccess.workspaceId, workspaceId),
+        eq(projectAccess.userId, userId)
+      ))
+
+    const uniqueEmployees = Array.from(new Map(
+      rows.map((row: any) => [row.employee.id, row.employee])
+    ).values())
+
+    return res.json({
+      employees: uniqueEmployees.map((employee: any) => ({
+        id: employee.id,
+        employeeNumber: employee.employeeNumber,
+        displayName: employee.name.trim().split(/\s+/).filter(Boolean).map((part: string) => part[0]).join('').toUpperCase().slice(0, 3) || 'Employee',
+        department: employee.department,
+        title: employee.title,
+        status: employee.status,
+      }))
+    })
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to fetch employees' })
   }
