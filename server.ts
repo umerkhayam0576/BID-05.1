@@ -6,23 +6,42 @@ import { financeRoutes } from './server/finance/routes'
 import { stripeRoutes } from './server/stripe/routes'
 import { portalRoutes } from './server/portal/routes'
 import { workspaceRoutes } from './server/workspace/routes'
+import { requireAuthentication } from './server/auth/middleware'
 
 export function createApp() {
   const app = express()
-  app.use((_req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*')
-    res.header('Access-Control-Allow-Headers', 'Content-Type, x-user-id')
-    res.header('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS')
+
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.APP_URL || 'http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+
+  app.use((req, res, next) => {
+    const origin = req.header('origin')
+    if (origin && allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin)
+      res.header('Vary', 'Origin')
+    }
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-User-Id')
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
+    res.header('Access-Control-Allow-Credentials', 'true')
+    res.header('X-Content-Type-Options', 'nosniff')
+    res.header('Referrer-Policy', 'strict-origin-when-cross-origin')
+    res.header('X-Frame-Options', 'DENY')
+    if (req.method === 'OPTIONS') return res.sendStatus(204)
     next()
   })
 
-  // Stripe webhook uses raw body parser before json parser
   app.use('/api/stripe', stripeRoutes)
 
   app.use(express.json({ limit: '1mb' }))
-  app.use('/api/portal', portalRoutes)
-  app.use('/api/workspace', workspaceRoutes)
-  app.use('/api/finance', financeRoutes)
+
+  // All authenticated application APIs must pass through real request authentication.
+  // The x-user-id header remains supported only in non-production development when explicitly enabled.
+  app.use('/api/portal', requireAuthentication, portalRoutes)
+  app.use('/api/workspace', requireAuthentication, workspaceRoutes)
+  app.use('/api/finance', requireAuthentication, financeRoutes)
+
   app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'bid-exact-erp', status: 'online' }))
 
   return app
@@ -30,7 +49,7 @@ export function createApp() {
 
 export async function startServer() {
   const app = createApp()
-  const PORT = 3000
+  const PORT = Number(process.env.PORT || 3000)
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
