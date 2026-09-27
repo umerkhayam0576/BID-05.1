@@ -43,7 +43,7 @@ export const workspaces = pgTable('app_workspaces', {
   industryType: text('industry_type').default('services').notNull(),
   country: text('country'),
   currency: text('currency').default('USD').notNull(),
-  createdByUserId: uuid('created_by_user_id').notNull(),
+  createdByUserId: text('created_by_user_id').notNull(),
   status: text('status').default('active').notNull(),
   ...timestamps,
 }, (table) => ({
@@ -53,12 +53,44 @@ export const workspaces = pgTable('app_workspaces', {
 export const memberships = pgTable('app_memberships', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull(),
-  userId: uuid('user_id').notNull(),
+  userId: text('user_id').notNull(),
   role: text('role').notNull(),
   status: text('status').default('active').notNull(),
   createdAt: timestamps.createdAt,
 }, (table) => ({
   workspaceUserUnique: unique('app_memberships_workspace_user_unique').on(table.workspaceId, table.userId),
+}))
+
+export const entityOwnerships = pgTable('app_entity_ownerships', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  userId: text('user_id').notNull(),
+  ownershipPercent: numeric('ownership_percent', { precision: 7, scale: 4 }).default('0').notNull(),
+  profitSharePercent: numeric('profit_share_percent', { precision: 7, scale: 4 }).default('0').notNull(),
+  entityRole: text('entity_role').default('member').notNull(),
+  status: text('status').default('active').notNull(),
+  createdAt: timestamps.createdAt,
+  updatedAt: timestamps.updatedAt,
+}, (table) => ({
+  workspaceUserUnique: unique('app_entity_ownership_workspace_user_unique').on(table.workspaceId, table.userId),
+}))
+
+export const entityInvitations = pgTable('app_entity_invitations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  invitedByUserId: text('invited_by_user_id').notNull(),
+  email: text('email').notNull(),
+  role: text('role').default('member').notNull(),
+  ownershipPercent: numeric('ownership_percent', { precision: 7, scale: 4 }).default('0').notNull(),
+  profitSharePercent: numeric('profit_share_percent', { precision: 7, scale: 4 }).default('0').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  status: text('status').default('pending').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  acceptedByUserId: text('accepted_by_user_id'),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+  createdAt: timestamps.createdAt,
+}, (table) => ({
+  tokenUnique: unique('app_entity_invitations_token_unique').on(table.tokenHash),
 }))
 
 export const clients = pgTable('app_clients', {
@@ -168,4 +200,4 @@ export const auditLogs = pgTable('app_audit_logs', {
   createdAt: timestamps.createdAt,
 })
 
-export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs }
+export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs }
