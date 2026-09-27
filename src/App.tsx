@@ -94,10 +94,10 @@ import { CommandPaletteModal } from './components/CommandPaletteModal';
 type AuthUser = { id: string; email: string; displayName: string | null };
 
 function AuthenticatedApp() {
-  // Workspace state: defaults to pre-con-estimating (Enterprise Operations)
+  // Workspace state: personal finance is the default landing workspace for authenticated users.
   const [activeWorkspace, setActiveWorkspace] = useState<'personal-finance' | 'pre-con-estimating'>(() => {
     const saved = localStorage.getItem('bid_exact_active_workspace');
-    return saved === 'personal-finance' ? 'personal-finance' : 'pre-con-estimating';
+    return saved === 'pre-con-estimating' ? 'pre-con-estimating' : 'personal-finance';
   });
 
   // State
