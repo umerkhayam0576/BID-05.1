@@ -443,7 +443,8 @@ router.post('/money-relationships/:id/respond', async (req, res) => {
       desktopRequested: false,
     })
 
-    await createPersonalNotification({ recipientUserId: currentUserId, type: 'personal_loan_request_response', title: decision === 'accept' ? 'Loan request accepted' : 'Loan request declined', body: decision === 'accept' ? 'The shared loan is now active.' : 'The loan request was declined.', entityType: 'personal_money_relationship', entityId: relationship.id })    res.json(updated)
+    await createPersonalNotification({ recipientUserId: currentUserId, type: 'personal_loan_request_response', title: decision === 'accept' ? 'Loan request accepted' : 'Loan request declined', body: decision === 'accept' ? 'The shared loan is now active.' : 'The loan request was declined.', entityType: 'personal_money_relationship', entityId: relationship.id })
+    res.json(updated)
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to respond to loan request' })
   }
