@@ -230,7 +230,7 @@ router.get('/liabilities', async (req, res) => {
       currency: property.currency,
       status: 'linked-property',
       notes: 'Automatically linked to Real Estate & Property. Manage this mortgage from the property record.',
-      originalBalance: property.purchasePrice,
+      originalBalance: property.mortgageBalance,
       interestRate: '0',
       paymentAmount: property.monthlyPayment,
       paymentFrequency: 'monthly',
