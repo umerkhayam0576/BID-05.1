@@ -31,7 +31,7 @@ function validPercent(value: unknown) {
 
 ownershipLegalRoutes.get('/:workspaceId/ownership', async (req, res) => {
   try {
-    await requireWorkspaceMembership(req, req.params.workspaceId)
+    await requireWorkspaceRole(req, req.params.workspaceId, [...ownerRoles])
 
     const [owners, history, requests] = await Promise.all([
       db.select({
