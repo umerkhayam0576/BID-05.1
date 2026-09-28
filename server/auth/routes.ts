@@ -21,7 +21,50 @@ function readCookie(req: Request, name: string) {
 
 export const authRoutes = Router()
 
-authRoutes.post('/login', async (req, res) => {
+authRoutes.post('/register', async (req, res) => {
+  try {
+    const displayName = typeof req.body?.displayName === 'string' ? req.body.displayName.trim() : ''
+    const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
+    const password = typeof req.body?.password === 'string' ? req.body.password : ''
+
+    if (!displayName || !email || !password) return res.status(400).json({ error: 'Name, email, and password are required' })
+    if (displayName.length < 2) return res.status(400).json({ error: 'Name must be at least 2 characters' })
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
+
+    const [existingUser] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+    if (existingUser) return res.status(409).json({ error: 'An account with that email already exists' })
+
+    const passwordHash = await hashPassword(password)
+    const [user] = await db.insert(users).values({
+      email,
+      displayName,
+      status: 'active',
+    }).returning({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+    })
+
+    await db.insert(userCredentials).values({
+      userId: user.id,
+      passwordHash,
+    })
+
+    const token = createSessionToken()
+    await db.insert(userSessions).values({
+      userId: user.id,
+      tokenHash: hashSessionToken(token),
+      expiresAt: sessionExpiry(),
+    })
+
+    res.cookie(SESSION_COOKIE_NAME, token, sessionCookieOptions())
+    return res.status(201).json({ user })
+  } catch {
+    return res.status(500).json({ error: 'Unable to create account' })
+  }
+})
+
+authRoutes.post('/login', async (req, res) =>
   try {
     const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
     const password = typeof req.body?.password === 'string' ? req.body.password : ''
