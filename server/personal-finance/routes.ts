@@ -234,7 +234,7 @@ router.get('/liabilities', async (req, res) => {
       const payments = await db.select({ principalAmount: personalDebtPayments.principalAmount })
         .from(personalDebtPayments)
         .where(and(eq(personalDebtPayments.userId, currentUserId), eq(personalDebtPayments.liabilityId, liabilityId)))
-      const originalBalance = Number(property.mortgageBalance) + payments.reduce((sum, payment) => sum + Number(payment.principalAmount), 0)
+      const originalBalance = Number(property.mortgageBalance) + payments.reduce((sum: number, payment: { principalAmount: string }) => sum + Number(payment.principalAmount), 0)
       return {
         id: liabilityId,
         userId: currentUserId,
