@@ -224,8 +224,12 @@ export const personalTransactions = pgTable('app_personal_transactions', {
   amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
   transactionDate: date('transaction_date').notNull(),
   notes: text('notes'),
+  sourceType: text('source_type'),
+  sourceId: uuid('source_id'),
   ...timestamps,
-})
+}, (table) => ({
+  recurringSourceUnique: unique('app_personal_transactions_source_date_unique').on(table.userId, table.sourceType, table.sourceId, table.transactionDate),
+}))
 
 export const personalAssets = pgTable('app_personal_assets', {
   id: uuid('id').defaultRandom().primaryKey(),
