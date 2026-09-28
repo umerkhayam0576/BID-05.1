@@ -116,7 +116,8 @@ export const AddCompanyModal: React.FC<AddCompanyModalProps> = ({
 
       onAddCompany({
         ...newCompany,
-        id: payload.entity.id,
+        id: newCompany.id,
+        workspaceId: payload.entity.id,
       });
       onClose();
 
