@@ -17,12 +17,28 @@ type Profile = {
 
 type User = { id: string; email: string; displayName: string }
 
+const defaultProfile: Profile = {
+  phone: '',
+  jobTitle: '',
+  bio: '',
+  avatarUrl: '',
+  country: '',
+  timezone: 'UTC',
+  language: 'en',
+  preferredCurrency: 'USD',
+  dateFormat: 'YYYY-MM-DD',
+  emailNotifications: true,
+  inAppNotifications: true,
+}
+
+
 export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const [tab, setTab] = useState<'profile' | 'preferences' | 'security'>('profile')
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [displayName, setDisplayName] = useState('')
-  const [form, setForm] = useState<Profile | null>(null)
+  const [form, setForm] = useState<Profile>(defaultProfile)
+  const [loading, setLoading] = useState(false)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -34,6 +50,7 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
     if (!isOpen) return
     setMessage('')
     setError('')
+    setLoading(true)
     fetch('/api/auth/profile', { credentials: 'include' })
       .then(async (res) => {
         const data = await res.json()
@@ -41,9 +58,10 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
         setUser(data.user)
         setProfile(data.profile)
         setDisplayName(data.user.displayName || '')
-        setForm(data.profile)
+        setForm({ ...defaultProfile, ...data.profile })
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => setError(err.message || 'Unable to load profile'))
+      .finally(() => setLoading(false))
   }, [isOpen])
 
   if (!isOpen) return null
@@ -64,7 +82,7 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Unable to save profile')
-      setUser(data.user); setProfile(data.profile); setForm(data.profile)
+      setUser(data.user); setProfile(data.profile); setForm({ ...defaultProfile, ...data.profile })
       setMessage('Profile settings saved.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save profile')
@@ -121,7 +139,9 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
           {error && <div className="p-3 rounded-md border border-[#ff7886]/30 bg-[#ff7886]/10 text-xs text-[#ffb2b7]">{error}</div>}
           {message && <div className="p-3 rounded-md border border-[#4edea3]/30 bg-[#4edea3]/10 text-xs text-[#4edea3]">{message}</div>}
 
-          {tab === 'profile' && form && (
+          {loading && <div className="p-3 rounded-md border border-[#2d3449] bg-[#0b1326] text-xs text-[#bbcabf]">Loading your profile settings...</div>}
+
+          {tab === 'profile' && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className={label}>Display name *</label><input className={input} value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></div>
@@ -136,7 +156,7 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
             </>
           )}
 
-          {tab === 'preferences' && form && (
+          {tab === 'preferences' && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className={label}>Language</label><select className={input} value={form.language} onChange={(e) => update('language', e.target.value)}><option value="en">English</option><option value="ur">Urdu</option><option value="ps">Pashto</option></select></div>
