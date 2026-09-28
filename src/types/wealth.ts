@@ -10,6 +10,8 @@ export interface CapTableMember {
 }
 
 export interface CompanyEntity {
+  /** Database workspace/tenant UUID. Company display IDs must never be used for tenant authorization. */
+  workspaceId?: string;
   id: string;
   name: string;
   industry: string;
