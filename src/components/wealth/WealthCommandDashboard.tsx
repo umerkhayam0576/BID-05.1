@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CompanyEntity,
   KeyWealthMetrics,
@@ -56,6 +56,40 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
   const totalUnpaid = companies.reduce((acc, c) => acc + c.distributionsPending, 0);
   const totalCompanyInterests = companies.reduce((acc, c) => acc + c.equityPositionValue, 0);
 
+  const [personalSummary, setPersonalSummary] = useState<{
+    cashBalance: string;
+    income: string;
+    expenses: string;
+    assetTotal: string;
+    liabilityTotal: string;
+    netWorth: string;
+    accountCount: number;
+    assetCount: number;
+    liabilityCount: number;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/personal-finance/summary', { credentials: 'include' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Personal finance summary request failed');
+        return response.json();
+      })
+      .then((data) => {
+        if (!cancelled) setPersonalSummary(data);
+      })
+      .catch(() => {
+        if (!cancelled) setPersonalSummary(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const personalCash = personalSummary ? Number(personalSummary.cashBalance) : metrics.personalCash;
+  const personalNetWorth = personalSummary ? Number(personalSummary.netWorth) : metrics.personalNetWorth;
+
   const pendingGov = governanceRequests[0] || null;
 
   return (
@@ -95,12 +129,12 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg border border-[#222a3d] bg-[#131b2e] px-3 py-2.5">
                 <span className="block font-mono text-[9px] uppercase tracking-wider text-[#91a0c5]">Liquid cash</span>
-                <span className="mt-1 block font-mono text-sm font-bold text-[#4edea3]">{mask(metrics.personalCash)}</span>
+                <span className="mt-1 block font-mono text-sm font-bold text-[#4edea3]">{mask(personalCash)}</span>
                 <span className="mt-0.5 block text-[10px] text-[#91a0c5]">Personal only</span>
               </div>
               <div className="rounded-lg border border-[#222a3d] bg-[#131b2e] px-3 py-2.5">
                 <span className="block font-mono text-[9px] uppercase tracking-wider text-[#91a0c5]">Net position</span>
-                <span className="mt-1 block font-mono text-sm font-bold text-[#dae2fd]">{mask(metrics.personalNetWorth)}</span>
+                <span className="mt-1 block font-mono text-sm font-bold text-[#dae2fd]">{mask(personalNetWorth)}</span>
                 <span className="mt-0.5 block text-[10px] text-[#91a0c5]">Across all books</span>
               </div>
               <div className="rounded-lg border border-[#222a3d] bg-[#131b2e] px-3 py-2.5">
@@ -169,7 +203,7 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
                 <span className="material-symbols-outlined text-[#4edea3] text-sm">account_balance</span>
               </div>
               <div className="font-mono text-xl text-[#dae2fd] font-bold tracking-tight">
-                {mask(metrics.personalCash)}
+                {mask(personalCash)}
               </div>
               <p className="text-xs text-[#bbcabf] line-clamp-2">
                 Liquid bank accounts & personal reserves (Unencumbered)
@@ -177,12 +211,12 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
             </div>
             <div className="mt-3 pt-2 space-y-1 bg-[#060e20]/80 p-2 rounded border border-[#222a3d] text-xs font-mono">
               <div className="flex justify-between items-center text-[#dae2fd]">
-                <span className="text-[#bbcabf]">Chase Checking</span>
-                <span>{mask(metrics.chaseChecking)}</span>
+                <span className="text-[#bbcabf]">All personal accounts</span>
+                <span>{personalSummary?.accountCount ?? 0}</span>
               </div>
               <div className="flex justify-between items-center text-[#dae2fd]">
-                <span className="text-[#bbcabf]">HYSA (5.1% APY)</span>
-                <span>{mask(metrics.hysa)}</span>
+                <span className="text-[#bbcabf]">Opening balance + net activity</span>
+                <span>{personalSummary ? mask(Number(personalSummary.cashBalance)) : mask(personalCash)}</span>
               </div>
               <div className="pt-1 border-t border-[#222a3d]">
                 <span className="font-mono text-[9px] text-[#4edea3] uppercase font-bold block">
@@ -294,16 +328,16 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
                 <span className="material-symbols-outlined text-[#4edea3] text-sm">diamond</span>
               </div>
               <div className="font-mono text-xl text-[#dae2fd] font-bold tracking-tight">
-                {mask(metrics.personalNetWorth)}
+                {mask(personalNetWorth)}
               </div>
               <p className="text-xs text-[#bbcabf] line-clamp-2">
-                Cash ($100k) + Inv ($200k) + Prop ($300k) + Entities ($500k) - Liab ($100k)
+                Cash ({personalSummary ? mask(Number(personalSummary.cashBalance)) : mask(personalCash)}) + Assets ({personalSummary ? mask(Number(personalSummary.assetTotal)) : "$0.00"}) - Liabilities ({personalSummary ? mask(Number(personalSummary.liabilityTotal)) : "$0.00"})
               </p>
             </div>
             <div className="mt-3 pt-2 bg-[#060e20]/80 p-2 rounded border border-[#222a3d] space-y-1 font-mono text-xs">
               <div className="flex items-center justify-between text-[#4edea3]">
-                <span>+11.4% YoY</span>
-                <span>+$102,500</span>
+                <span>{personalSummary ? `${personalSummary.income ? "+" : ""}${mask(Number(personalSummary.income))} income` : "Live personal income"}</span>
+                <span>{personalSummary ? `${personalSummary.expenses ? "-" : ""}${mask(Number(personalSummary.expenses))} expenses` : "Live personal expenses"}</span>
               </div>
               <span className="text-[9px] text-[#dae2fd] uppercase block font-bold">
                 Consolidated Total Wealth Balance
@@ -312,6 +346,29 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
           </div>
         </div>
       </section>
+
+      {/* Live Personal Balance Summary */}
+      {personalSummary && (
+        <section className="px-4 sm:px-6 py-4 sm:py-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-4">
+              <div className="font-mono text-[10px] text-[#bbcabf] uppercase font-bold">Personal Assets</div>
+              <div className="mt-2 font-mono text-2xl text-[#dae2fd] font-bold">{mask(Number(personalSummary.assetTotal))}</div>
+              <div className="mt-1 text-xs text-[#bbcabf]">{personalSummary.assetCount} active asset{personalSummary.assetCount === 1 ? '' : 's'}</div>
+            </div>
+            <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-4">
+              <div className="font-mono text-[10px] text-[#bbcabf] uppercase font-bold">Personal Liabilities</div>
+              <div className="mt-2 font-mono text-2xl text-[#ffb2b7] font-bold">{mask(Number(personalSummary.liabilityTotal))}</div>
+              <div className="mt-1 text-xs text-[#bbcabf]">{personalSummary.liabilityCount} active liabilit{personalSummary.liabilityCount === 1 ? 'y' : 'ies'}</div>
+            </div>
+            <div className="bg-[#171f33] border border-[#4edea3]/30 rounded-lg p-4">
+              <div className="font-mono text-[10px] text-[#4edea3] uppercase font-bold">Personal Net Worth</div>
+              <div className="mt-2 font-mono text-2xl text-[#4edea3] font-bold">{mask(personalNetWorth)}</div>
+              <div className="mt-1 text-xs text-[#bbcabf]">Cash + assets − liabilities</div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Section 2: "My Companies" Portfolio Grid */}
       <section className="px-4 sm:px-6 py-4 sm:py-6 space-y-4">
@@ -545,14 +602,14 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
               <div className="bg-[#171f33] p-3 rounded-lg space-y-1 border border-[#222a3d]">
                 <div className="flex justify-between items-center">
                   <span className="text-[#dae2fd]">Personal Operating Inflow</span>
-                  <span className="font-bold text-[#4edea3]">+$18,500/mo</span>
+                  <span className="font-bold text-[#4edea3]">+{personalSummary ? mask(Number(personalSummary.income)) : "$0.00"}</span>
                 </div>
                 <div className="w-full bg-[#060e20] h-1.5 rounded-full overflow-hidden">
                   <div className="bg-[#4edea3] h-full w-3/4 rounded-full"></div>
                 </div>
                 <div className="flex justify-between text-[#bbcabf] text-[10px] pt-1">
-                  <span>Salary: $14.0k/mo (Bid Exact)</span>
-                  <span>Advisory: $4.5k/mo</span>
+                  <span>Personal income recorded</span>
+                  <span>{personalSummary ? `${personalSummary.accountCount} account${personalSummary.accountCount === 1 ? "" : "s"}` : "Loading..."}</span>
                 </div>
               </div>
 
@@ -576,13 +633,13 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
               <div className="bg-[#171f33] p-3 rounded-lg space-y-1 border border-[#222a3d]">
                 <div className="flex justify-between items-center">
                   <span className="text-[#dae2fd]">Capital Injections (Outflow)</span>
-                  <span className="font-bold text-[#ffb2b7]">-{mask(totalContributed)}</span>
+                  <span className="font-bold text-[#ffb2b7]">-{personalSummary ? mask(Number(personalSummary.expenses)) : "$0.00"}</span>
                 </div>
                 <div className="w-full bg-[#060e20] h-1.5 rounded-full overflow-hidden">
                   <div className="bg-[#ff7886] h-full w-4/5 rounded-full"></div>
                 </div>
                 <div className="text-[#bbcabf] text-[10px] pt-1">
-                  <span>Cumulative Principal Subscribed to Entities</span>
+                  <span>Personal expenses recorded in the database</span>
                 </div>
               </div>
 
@@ -593,7 +650,7 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
                   <span className="text-[#bbcabf]">Variable</span>
                 </div>
                 <div className="text-[#bbcabf] text-[10px]">
-                  <span>Primary Mortgage • Q3 Estimated Tax • Private Reserve</span>
+                  <span>Active liabilities: {personalSummary?.liabilityCount ?? 0} • Assets: {personalSummary?.assetCount ?? 0}</span>
                 </div>
               </div>
             </div>
@@ -605,7 +662,7 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
                   Ending Liquid Personal Cash
                 </span>
                 <div className="font-mono text-2xl font-bold text-[#4edea3]">
-                  {mask(metrics.personalCash)}
+                  {mask(personalCash)}
                 </div>
               </div>
               <span className="material-symbols-outlined text-[#4edea3] text-4xl">account_balance_wallet</span>

@@ -18,6 +18,7 @@ import { PersonalFinanceHub } from './components/finance/PersonalFinanceHub';
 import { ProjectTrackingOperations } from './components/ProjectTrackingOperations';
 import type { OutsourcedProjectAssignment } from './components/OutsourcedProjectModal';
 import { WorkflowAutomationHub } from './components/workflow/WorkflowAutomationHub';
+import { LoginScreen } from './components/auth/LoginScreen';
 
 // Dedicated Module Views
 import { OperationsOverviewView } from './components/views/OperationsOverviewView';
@@ -90,11 +91,13 @@ import { ExportPdfModal } from './components/ExportPdfModal';
 import { AuditLogModal } from './components/AuditLogModal';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 
-export default function App() {
-  // Workspace state: defaults to pre-con-estimating (Enterprise Operations)
+type AuthUser = { id: string; email: string; displayName: string | null };
+
+function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
+  // Workspace state: personal finance is the default landing workspace for authenticated users.
   const [activeWorkspace, setActiveWorkspace] = useState<'personal-finance' | 'pre-con-estimating'>(() => {
     const saved = localStorage.getItem('bid_exact_active_workspace');
-    return saved === 'personal-finance' ? 'personal-finance' : 'pre-con-estimating';
+    return saved === 'pre-con-estimating' ? 'pre-con-estimating' : 'personal-finance';
   });
 
   // State
@@ -567,6 +570,7 @@ export default function App() {
   if (activeWorkspace === 'personal-finance') {
     return (
       <PersonalFinanceHub
+        onLogout={onLogout}
         activeWorkspace={activeWorkspace}
         onSwitchWorkspace={(ws) => {
           setActiveWorkspace(ws);
@@ -954,4 +958,22 @@ export default function App() {
       />
     </div>
   );
+}
+
+export default function App() {
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } finally {
+      setAuthUser(null);
+    }
+  };
+
+  if (!authUser) {
+    return <LoginScreen onAuthenticated={setAuthUser} />;
+  }
+
+  return <AuthenticatedApp onLogout={handleLogout} />;
 }

@@ -99,6 +99,7 @@ export type WealthNavTabId =
   | 'bank-and-liquid-cash'
   | 'investment-portfolios'
   | 'real-estate-and-property'
+  | 'personal-assets'
   | 'personal-liabilities-and-debt'
   | 'personal-cash-flow'
   | 'ownership-agreements-and-docs'

@@ -204,9 +204,9 @@ export const WealthSidebar: React.FC<WealthSidebarProps> = ({
               >
                 <div className="flex items-center gap-2 truncate">
                   <span className="material-symbols-outlined text-sm">payments</span>
-                  <span className="truncate">Bank & Liquid Cash</span>
+                  <span className="truncate">Personal Accounts</span>
                 </div>
-                <span className="font-mono text-xs text-[#dae2fd]">$100k</span>
+                <span className="font-mono text-[10px] text-[#86948a]">LIVE</span>
               </button>
 
               <button
@@ -245,6 +245,25 @@ export const WealthSidebar: React.FC<WealthSidebarProps> = ({
                   <span className="truncate">Real Estate & Property</span>
                 </div>
                 <span className="font-mono text-xs text-[#dae2fd]">$300k</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleSelectEntity(null);
+                  handleSelectTab('personal-assets');
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors text-left text-sm ${
+                  activeEntityId === null && activeTab === 'personal-assets'
+                    ? 'bg-[#10b981] text-[#003824] font-semibold'
+                    : 'text-[#bbcabf] hover:bg-[#171f33] hover:text-[#dae2fd]'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="material-symbols-outlined text-sm">account_balance</span>
+                  <span className="truncate">Personal Assets</span>
+                </div>
+                <span className="font-mono text-[10px] text-[#4edea3]">LIVE</span>
               </button>
 
               <button

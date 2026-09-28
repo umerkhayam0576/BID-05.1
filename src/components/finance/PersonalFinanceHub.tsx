@@ -30,17 +30,23 @@ import { WealthExportPdfModal } from '../wealth/WealthExportPdfModal';
 import { WealthAuditLogModal } from '../wealth/WealthAuditLogModal';
 import { GlobalSearchModal } from '../wealth/GlobalSearchModal';
 import { FinanceWorkflowView } from './FinanceWorkflowView';
+import { PersonalAccountsView } from './PersonalAccountsView';
+import { PersonalTransactionsView } from './PersonalTransactionsView';
+import { PersonalAssetsView } from './PersonalAssetsView';
+import { PersonalLiabilitiesView } from './PersonalLiabilitiesView';
+import { PersonalPropertiesView } from './PersonalPropertiesView';
 
 interface PersonalFinanceHubProps {
   onSwitchWorkspace: (ws: 'personal-finance' | 'pre-con-estimating') => void;
   activeWorkspace: 'personal-finance' | 'pre-con-estimating';
+  onLogout: () => void;
 }
 
 export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
   onSwitchWorkspace,
   activeWorkspace,
+  onLogout,
 }) => {
-  // 1. Data State with LocalStorage Persistence
   const [companies, setCompanies] = useState<CompanyEntity[]>(() => {
     const saved = localStorage.getItem('bid_exact_wealth_companies');
     return saved ? JSON.parse(saved) : INITIAL_COMPANIES;
@@ -61,7 +67,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
     return saved ? JSON.parse(saved) : INITIAL_GOVERNANCE_REQUESTS;
   });
 
-  // 2. Navigation & View State
   const [activeEntityId, setActiveEntityId] = useState<string | null>(() => {
     const saved = localStorage.getItem('bid_exact_wealth_active_entity');
     return saved ? JSON.parse(saved) : null;
@@ -74,7 +79,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
     return saved ? JSON.parse(saved) : false;
   });
 
-  // 3. Modal States
   const [isAddCompanyOpen, setIsAddCompanyOpen] = useState(false);
   const [isRecordCapitalOpen, setIsRecordCapitalOpen] = useState(false);
   const [isReviewGovOpen, setIsReviewGovOpen] = useState(false);
@@ -84,7 +88,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Sync to local storage
   useEffect(() => {
     localStorage.setItem('bid_exact_wealth_companies', JSON.stringify(companies));
   }, [companies]);
@@ -109,7 +112,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
     localStorage.setItem('bid_exact_wealth_privacy', JSON.stringify(privacyMode));
   }, [privacyMode]);
 
-  // Keyboard shortcut: Cmd+K / Ctrl+K for search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -121,7 +123,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Handlers
   const handleSelectEntity = (id: string | null) => {
     setActiveEntityId(id);
     if (id) {
@@ -143,8 +144,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
     };
 
     setCompanies((prev) => [...prev, newCompany]);
-
-    // Automatically adjust personal wealth metrics
     setMetrics((prev) => ({
       ...prev,
       personalNetWorth: prev.personalNetWorth + equityValue,
@@ -153,8 +152,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
       profitAttributed: prev.profitAttributed + attrProfit,
       distributionsReceived: prev.distributionsReceived + newCompanyData.distributionsReceived,
     }));
-
-    // Switch focus to the newly added company
     setActiveEntityId(newCompany.id);
   };
 
@@ -280,7 +277,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
 
   const currentCompany = companies.find((c) => c.id === activeEntityId) || null;
 
-  // STRICT ISOLATION: When a specific company is clicked/selected, render ONLY its dedicated corporate interface
   if (currentCompany) {
     return (
       <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] flex flex-col antialiased selection:bg-[#4edea3]/25 selection:text-[#4edea3] theme-surface">
@@ -294,12 +290,12 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
           privacyMode={privacyMode}
           onTogglePrivacy={() => setPrivacyMode(!privacyMode)}
           onSwitchWorkspace={onSwitchWorkspace}
+          onLogout={onLogout}
           onUpdateCompany={(updated) => {
             setCompanies((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
           }}
         />
 
-        {/* Dedicated Modal for Company Record Action */}
         <RecordCapitalModal
           isOpen={isRecordCapitalOpen}
           onClose={() => setIsRecordCapitalOpen(false)}
@@ -313,8 +309,8 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
 
   return (
     <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] flex flex-col antialiased selection:bg-[#4edea3]/25 selection:text-[#4edea3] theme-surface">
-      {/* Top Universal Wealth & Entity Switcher Header */}
       <WealthTopHeader
+        onLogout={onLogout}
         activeWorkspace={activeWorkspace}
         onSwitchWorkspace={onSwitchWorkspace}
         selectedPeriod={selectedPeriod}
@@ -327,9 +323,7 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       />
 
-      {/* Main Split Layout: Sidebar + Operations Surface */}
       <div className="flex-1 flex min-h-0 overflow-hidden pt-14 lg:pl-72">
-        {/* Left Navigation Sidebar */}
         <WealthSidebar
           activeTab={activeTab}
           onSelectTab={setActiveTab}
@@ -341,13 +335,8 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
           onCloseMobile={() => setIsMobileMenuOpen(false)}
         />
 
-        {/* Central Dynamic Content Surface */}
-        <main
-          id="wealth-main-scroll"
-          className="flex-1 overflow-y-auto bg-[#0b1326] relative"
-        >
+        <main id="wealth-main-scroll" className="flex-1 overflow-y-auto bg-[#0b1326] relative">
           {activeTab === 'personal-financial-overview' ? (
-            /* Master Consolidated Dashboard */
             <WealthCommandDashboard
               companies={companies}
               metrics={metrics}
@@ -368,7 +357,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
               privacyMode={privacyMode}
             />
           ) : activeTab === 'multi-company-portfolio' ? (
-            /* C. Multi-Company Operating Portfolio */
             <MultiCompanyPortfolioView
               companies={companies}
               onSelectEntity={handleSelectEntity}
@@ -377,7 +365,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
               privacyMode={privacyMode}
             />
           ) : activeTab === 'ownership-and-cap-tables' ? (
-            /* D. Ownership & Cap Tables with Dilution Modeling */
             <CapTableView
               companies={companies}
               onSelectEntity={(id) => {
@@ -385,10 +372,17 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
               }}
               privacyMode={privacyMode}
             />
+          ) : activeTab === 'bank-and-liquid-cash' ? (
+            <PersonalAccountsView />
+          ) : activeTab === 'real-estate-and-property' ? (
+            <PersonalPropertiesView />
+          ) : activeTab === 'personal-assets' ? (
+            <PersonalAssetsView />
+          ) : activeTab === 'personal-liabilities-and-debt' ? (
+            <PersonalLiabilitiesView />
           ) : activeTab === 'personal-cash-flow' ? (
-            <FinanceWorkflowView privacyMode={privacyMode} />
+            <PersonalTransactionsView />
           ) : (
-            /* E. Secondary Deep Modules (Cash, Investments, Real Estate, Distributions) */
             <WealthSecondaryViews
               activeTab={activeTab}
               companies={companies}
@@ -401,8 +395,6 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
         </main>
       </div>
 
-
-      {/* Interactive Modal Suite */}
       <AddCompanyModal
         isOpen={isAddCompanyOpen}
         onClose={() => setIsAddCompanyOpen(false)}

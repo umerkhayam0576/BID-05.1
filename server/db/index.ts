@@ -19,17 +19,22 @@ if (!isPlaceholderDb) {
   try {
     const testPool = new Pool({ connectionString: rawDbUrl, connectionTimeoutMillis: 2000 })
     testPool.on('error', (err) => {
-      console.warn('[AI Studio] PostgreSQL pool error, switching to mock store:', err.message)
-      realDb = null
-      realPool = null
+      console.error('[db] PostgreSQL pool error:', err.message)
+      // Never switch an authenticated production application to the mock store.
+      if (process.env.NODE_ENV === 'production') {
+        process.exitCode = 1
+      }
     })
     realPool = testPool
     realDb = drizzle(realPool, { schema })
   } catch (err) {
-    console.warn('[AI Studio] PostgreSQL initialization failed, using mock data layer:', err)
+    console.error('[db] PostgreSQL initialization failed:', err)
   }
 } else {
-  console.log('[AI Studio] Running in resilient mock store mode (PostgreSQL placeholder detected or not configured)')
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('DATABASE_URL must be configured in production')
+  }
+  console.log('[db] Development mock store enabled because DATABASE_URL is not configured')
 }
 
 export const pool = realPool || (new Proxy({} as Pool, {
@@ -445,23 +450,19 @@ function createMockDb(): any {
 
 const mockDb = createMockDb()
 
+// Production must use PostgreSQL. The in-memory store is intentionally development-only.
+// This prevents an unavailable/misconfigured database from silently serving stale or cross-user mock data.
+if (process.env.NODE_ENV === 'production' && !realDb) {
+  throw new Error('DATABASE_URL must be configured and reachable in production')
+}
+
 export const db = new Proxy(mockDb, {
   get(target, prop, receiver) {
     if (realDb && typeof realDb[prop] === 'function') {
-      return (...args: any[]) => {
-        try {
-          const res = realDb[prop](...args)
-          if (res && typeof res.then === 'function') {
-            return res.catch((err: any) => {
-              console.warn(`[AI Studio] Real DB call failed for ${String(prop)}, falling back to in-memory store:`, err.message)
-              return (target as any)[prop](...args)
-            })
-          }
-          return res
-        } catch {
-          return (target as any)[prop](...args)
-        }
-      }
+      return (...args: any[]) => realDb[prop](...args)
+    }
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Database is unavailable')
     }
     return Reflect.get(target, prop, receiver)
   },
