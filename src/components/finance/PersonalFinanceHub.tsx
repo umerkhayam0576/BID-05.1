@@ -34,6 +34,7 @@ import { PersonalAccountsView } from './PersonalAccountsView';
 import { PersonalTransactionsView } from './PersonalTransactionsView';
 import { PersonalAssetsView } from './PersonalAssetsView';
 import { PersonalLiabilitiesView } from './PersonalLiabilitiesView';
+import { PersonalPropertiesView } from './PersonalPropertiesView';
 
 interface PersonalFinanceHubProps {
   onSwitchWorkspace: (ws: 'personal-finance' | 'pre-con-estimating') => void;
@@ -391,6 +392,8 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
             />
           ) : activeTab === 'bank-and-liquid-cash' ? (
             <PersonalAccountsView />
+          ) : activeTab === 'real-estate-and-property' ? (
+            <PersonalPropertiesView />
           ) : activeTab === 'personal-assets' ? (
             <PersonalAssetsView />
            ) : activeTab === 'personal-liabilities-and-debt' ? (
