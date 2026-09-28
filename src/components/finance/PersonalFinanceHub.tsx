@@ -417,6 +417,18 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
         />
 
         <main id="wealth-main-scroll" className="flex-1 overflow-y-auto bg-[#0b1326] relative">
+          <div className="sticky top-0 z-30 flex justify-end px-4 pt-3 pointer-events-none">
+            <button
+              type="button"
+              onClick={onOpenStudio}
+              className="pointer-events-auto inline-flex items-center gap-2 rounded-lg border border-[#4edea3]/40 bg-[#131b2e]/95 px-3 py-2 text-sm font-semibold text-[#4edea3] shadow-lg backdrop-blur hover:bg-[#1a243b] transition-colors"
+              aria-label="Open SaaS Studio administration"
+            >
+              <span className="material-symbols-outlined text-base">settings</span>
+              <span>Studio</span>
+              <span className="font-mono text-[9px] rounded bg-[#4edea3]/15 px-1.5 py-0.5">ADMIN</span>
+            </button>
+          </div>
           {activeTab === 'personal-financial-overview' ? (
             <WealthCommandDashboard
               companies={companies}
