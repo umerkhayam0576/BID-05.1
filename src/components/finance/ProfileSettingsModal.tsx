@@ -73,9 +73,12 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
         setUser(data.user)
         setProfile(data.profile)
         setDisplayName(data.user.displayName || '')
-        setForm({ ...defaultProfile, ...data.profile })
         const matchedCountry = countries.find((item) => item.name === data.profile?.country)
-        setPhoneCountryCode(matchedCountry?.code || '')
+        const loadedCode = matchedCountry?.code || ''
+        setPhoneCountryCode(loadedCode)
+        const loadedPhone = String(data.profile?.phone || '')
+        const loadedNumber = loadedCode && loadedPhone.startsWith(loadedCode) ? loadedPhone.slice(loadedCode.length).trim() : loadedPhone.replace(/^\+\d{1,4}\s*/, '')
+        setForm({ ...defaultProfile, ...data.profile, phone: loadedNumber })
         setPhotoPreview(data.profile?.avatarUrl || '')
       })
       .catch((err) => setError(err.message || 'Unable to load profile'))
@@ -96,18 +99,14 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
     const currentPhone = form.phone || ''
     const previousCodes = countries.map((item) => item.code).filter((code, index, all) => all.indexOf(code) === index)
     const withoutCode = previousCodes.reduce((phone, code) => {
-      return phone.startsWith(code + ' ') ? phone.slice(code.length + 1) : phone
+      return phone.startsWith(code) ? phone.slice(code.length).trim() : phone
     }, currentPhone)
-    update('phone', nextCode ? `${nextCode}${withoutCode ? ' ' + withoutCode : ''}` : withoutCode)
+    update('phone', withoutCode)
   }
 
   const handlePhoneChange = (value: string) => {
-    if (phoneCountryCode && value && !value.startsWith(phoneCountryCode)) {
-      const stripped = value.replace(/^\+?\d{1,4}\s*/, '')
-      update('phone', `${phoneCountryCode} ${stripped}`.trim())
-    } else {
-      update('phone', value)
-    }
+    const stripped = value.replace(/^\+?\d{1,4}\s*/, '')
+    update('phone', stripped)
   }
 
   const saveProfile = async () => {
@@ -137,7 +136,7 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ displayName, ...form, avatarUrl }),
+        body: JSON.stringify({ displayName, ...form, phone: phoneCountryCode ? `${phoneCountryCode} ${String(form.phone || '').trim()}`.trim() : form.phone, avatarUrl }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Unable to save profile')
@@ -210,22 +209,10 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
                 <div>
                   <label className={label}>Phone</label>
                   <div className="flex gap-2">
-                    <select
-                      className={input + ' w-32 shrink-0'}
-                      value={phoneCountryCode}
-                      onChange={(e) => {
-                        const code = e.target.value
-                        const country = countries.find((item) => item.code === code)
-                        if (country) handleCountryChange(country.name)
-                      }}
-                      aria-label="Phone country code"
-                    >
-                      <option value="">Code</option>
-                      {countries.map((item) => <option key={item.name} value={item.code}>{item.code}</option>)}
-                    </select>
-                    <input className={input} value={form.phone || ''} onChange={(e) => handlePhoneChange(e.target.value)} placeholder="+92 300 1234567" />
+                    <input className={input + ' w-24 shrink-0 opacity-60'} value={phoneCountryCode || '—'} disabled aria-label="Phone country code" />
+                    <input className={input} value={form.phone || ''} onChange={(e) => handlePhoneChange(e.target.value)} placeholder="300 1234567" />
                   </div>
-                  <p className="text-[10px] text-[#86948a] mt-1">Country code is linked to your selected country.</p>
+                  <p className="text-[10px] text-[#86948a] mt-1">Country sets the country code automatically. Enter only your phone number.</p>
                 </div>
                 <div><label className={label}>Job title</label><input className={input} value={form.jobTitle || ''} onChange={(e) => update('jobTitle', e.target.value)} placeholder="e.g. Managing Partner" /></div>
                 <div>
