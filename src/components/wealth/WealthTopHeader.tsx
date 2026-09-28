@@ -117,19 +117,27 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
         )}
 
         {/* User Profile */}
-        <div className="flex items-center gap-2.5 pl-2 border-l border-[#222a3d]">
+        <button
+          type="button"
+          onClick={() => setIsProfileOpen(true)}
+          className="flex items-center gap-2.5 pl-2 border-l border-[#222a3d] cursor-pointer group"
+          aria-label="Open profile settings"
+          title="Profile & Settings"
+        >
           <div className="flex flex-col text-right hidden lg:flex">
-            <span className="font-['Manrope'] font-semibold text-sm text-[#dae2fd] leading-tight">
-              Sarah Jenkins / Umer
+            <span className="font-['Manrope'] font-semibold text-sm text-[#dae2fd] leading-tight group-hover:text-white">
+              {profileName}
             </span>
             <span className="font-mono text-[10px] text-[#4edea3] font-semibold">
-              Personal Principal & Managing Partner
+              {profileTitle}
             </span>
           </div>
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#10b981] to-[#3b82f6] text-[#002113] font-bold text-xs flex items-center justify-center ring-1 ring-[#3c4a42]">
-            UK
+            {profileName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'U'}
           </div>
-        </div>
+        </button>
+
+        <ProfileSettingsModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       </div>
     </header>
   );
