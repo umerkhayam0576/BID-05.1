@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { Router } from 'express'
 import { db } from '../db'
-import { personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalProperties } from '../db/app-schema'
+import { personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalProperties } from '../db/app-schema'
 import { getAuthenticatedUserId } from '../auth/middleware'
 
 const router = Router()
@@ -249,6 +249,69 @@ router.get('/liabilities', async (req, res) => {
     }))
   res.json([...propertyMortgages, ...liabilities])
 })
+router.get('/liabilities/:id/payments', async (req, res) => {
+  const currentUserId = userId(req)
+  const rows = await db.select().from(personalDebtPayments)
+    .where(and(eq(personalDebtPayments.userId, currentUserId), eq(personalDebtPayments.liabilityId, req.params.id)))
+    .orderBy(desc(personalDebtPayments.paymentDate), desc(personalDebtPayments.createdAt))
+  res.json(rows)
+})
+
+router.post('/liabilities/:id/payments', async (req, res) => {
+  try {
+    const currentUserId = userId(req)
+    const paymentAmount = Number(req.body?.amount)
+    const paymentDate = typeof req.body?.paymentDate === 'string' && req.body.paymentDate ? req.body.paymentDate : new Date().toISOString().slice(0, 10)
+    const principalAmount = Number(req.body?.principalAmount ?? paymentAmount)
+    const interestAmount = Number(req.body?.interestAmount ?? 0)
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) throw new Error('Payment amount must be greater than zero')
+    if (!Number.isFinite(principalAmount) || principalAmount < 0 || principalAmount > paymentAmount) throw new Error('Principal amount must be between zero and payment amount')
+    if (!Number.isFinite(interestAmount) || interestAmount < 0 || principalAmount + interestAmount > paymentAmount + 0.01) throw new Error('Interest amount is invalid')
+
+    const linkedPropertyId = req.params.id.startsWith('property-mortgage:') ? req.params.id.slice('property-mortgage:'.length) : null
+    let currentBalance = 0
+    if (linkedPropertyId) {
+      const [property] = await db.select().from(personalProperties).where(and(
+        eq(personalProperties.id, linkedPropertyId),
+        eq(personalProperties.userId, currentUserId),
+        eq(personalProperties.status, 'active'),
+      )).limit(1)
+      if (!property) return res.status(404).json({ error: 'Linked property mortgage not found' })
+      currentBalance = Number(property.mortgageBalance)
+      if (principalAmount > currentBalance) throw new Error('Principal payment cannot exceed the remaining mortgage balance')
+      const balanceAfter = Math.max(0, currentBalance - principalAmount)
+      await db.update(personalProperties).set({ mortgageBalance: balanceAfter.toFixed(2) })
+        .where(and(eq(personalProperties.id, linkedPropertyId), eq(personalProperties.userId, currentUserId)))
+      const [payment] = await db.insert(personalDebtPayments).values({
+        userId: currentUserId, liabilityId: req.params.id, paymentDate,
+        amount: paymentAmount.toFixed(2), principalAmount: principalAmount.toFixed(2),
+        interestAmount: interestAmount.toFixed(2), balanceAfter: balanceAfter.toFixed(2),
+        notes: typeof req.body?.notes === 'string' ? req.body.notes.trim() || null : null,
+      }).returning()
+      return res.status(201).json(payment)
+    }
+
+    const [liability] = await db.select().from(personalLiabilities).where(and(
+      eq(personalLiabilities.id, req.params.id),
+      eq(personalLiabilities.userId, currentUserId),
+      eq(personalLiabilities.status, 'active'),
+    )).limit(1)
+    if (!liability) return res.status(404).json({ error: 'Personal liability not found' })
+    currentBalance = Number(liability.currentBalance)
+    if (principalAmount > currentBalance) throw new Error('Principal payment cannot exceed the remaining balance')
+    const balanceAfter = Math.max(0, currentBalance - principalAmount)
+    await db.update(personalLiabilities).set({ currentBalance: balanceAfter.toFixed(2) })
+      .where(and(eq(personalLiabilities.id, req.params.id), eq(personalLiabilities.userId, currentUserId), eq(personalLiabilities.status, 'active')))
+    const [payment] = await db.insert(personalDebtPayments).values({
+      userId: currentUserId, liabilityId: req.params.id, paymentDate,
+      amount: paymentAmount.toFixed(2), principalAmount: principalAmount.toFixed(2),
+      interestAmount: interestAmount.toFixed(2), balanceAfter: balanceAfter.toFixed(2),
+      notes: typeof req.body?.notes === 'string' ? req.body.notes.trim() || null : null,
+    }).returning()
+    res.status(201).json(payment)
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to record payment' }) }
+})
+
 router.post('/liabilities', async (req, res) => {
   try {
     const [liability] = await db.insert(personalLiabilities).values({
