@@ -330,15 +330,16 @@ router.get('/money-relationships', async (req, res) => {
       // directions with two small queries and merge them below.
     )
   )
-  const mine = rows.filter((row) => row.borrowerUserId === currentUserId || row.lenderUserId === currentUserId)
-  const otherIds = [...new Set(mine.map((row) => row.borrowerUserId === currentUserId ? row.lenderUserId : row.borrowerUserId))]
+  const mine = rows.filter((row: typeof rows[number]) => row.borrowerUserId === currentUserId || row.lenderUserId === currentUserId)
+  const otherIds = [...new Set(mine.map((row: typeof rows[number]) => row.borrowerUserId === currentUserId ? row.lenderUserId : row.borrowerUserId))]
   const people = otherIds.length
     ? await db.select({ id: users.id, displayName: users.displayName, email: users.email })
       .from(users)
       .where(eq(users.status, 'active'))
     : []
-  const peopleById = new Map(people.filter((person) => otherIds.includes(person.id)).map((person) => [person.id, person]))
-  res.json(mine.map((row) => {
+  type PersonSummary = { id: string; displayName: string | null; email: string | null }
+  const peopleById = new Map((people as PersonSummary[]).filter((person: PersonSummary) => otherIds.includes(person.id)).map((person: PersonSummary) => [person.id, person]))
+  res.json(mine.map((row: typeof rows[number]) => {
     const isBorrower = row.borrowerUserId === currentUserId
     const otherId = isBorrower ? row.lenderUserId : row.borrowerUserId
     const other = peopleById.get(otherId)
