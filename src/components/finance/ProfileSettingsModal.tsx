@@ -17,6 +17,18 @@ type Profile = {
 
 type User = { id: string; email: string; displayName: string }
 
+const countries = [
+  ['Pakistan', '+92'], ['United States', '+1'], ['Canada', '+1'], ['United Kingdom', '+44'],
+  ['United Arab Emirates', '+971'], ['Saudi Arabia', '+966'], ['Qatar', '+974'], ['Kuwait', '+965'],
+  ['Bahrain', '+973'], ['Oman', '+968'], ['India', '+91'], ['Australia', '+61'],
+  ['New Zealand', '+64'], ['Germany', '+49'], ['France', '+33'], ['Italy', '+39'],
+  ['Spain', '+34'], ['Netherlands', '+31'], ['Belgium', '+32'], ['Switzerland', '+41'],
+  ['Sweden', '+46'], ['Norway', '+47'], ['Denmark', '+45'], ['Finland', '+358'],
+  ['Ireland', '+353'], ['South Africa', '+27'], ['Nigeria', '+234'], ['Kenya', '+254'],
+  ['Turkey', '+90'], ['Malaysia', '+60'], ['Singapore', '+65'], ['Indonesia', '+62'],
+  ['Japan', '+81'], ['South Korea', '+82'], ['China', '+86'], ['Bangladesh', '+880'],
+].map(([name, code]) => ({ name, code }))
+
 const defaultProfile: Profile = {
   phone: '',
   jobTitle: '',
@@ -45,6 +57,7 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [phoneCountryCode, setPhoneCountryCode] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
 
@@ -61,6 +74,8 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
         setProfile(data.profile)
         setDisplayName(data.user.displayName || '')
         setForm({ ...defaultProfile, ...data.profile })
+        const matchedCountry = countries.find((item) => item.name === data.profile?.country)
+        setPhoneCountryCode(matchedCountry?.code || '')
         setPhotoPreview(data.profile?.avatarUrl || '')
       })
       .catch((err) => setError(err.message || 'Unable to load profile'))
@@ -71,6 +86,28 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
 
   const update = (key: keyof Profile, value: string | boolean) => {
     setForm((current) => current ? { ...current, [key]: value } : current)
+  }
+
+  const handleCountryChange = (country: string) => {
+    update('country', country)
+    const selected = countries.find((item) => item.name === country)
+    const nextCode = selected?.code || ''
+    setPhoneCountryCode(nextCode)
+    const currentPhone = form.phone || ''
+    const previousCodes = countries.map((item) => item.code).filter((code, index, all) => all.indexOf(code) === index)
+    const withoutCode = previousCodes.reduce((phone, code) => {
+      return phone.startsWith(code + ' ') ? phone.slice(code.length + 1) : phone
+    }, currentPhone)
+    update('phone', nextCode ? `${nextCode}${withoutCode ? ' ' + withoutCode : ''}` : withoutCode)
+  }
+
+  const handlePhoneChange = (value: string) => {
+    if (phoneCountryCode && value && !value.startsWith(phoneCountryCode)) {
+      const stripped = value.replace(/^\+?\d{1,4}\s*/, '')
+      update('phone', `${phoneCountryCode} ${stripped}`.trim())
+    } else {
+      update('phone', value)
+    }
   }
 
   const saveProfile = async () => {
@@ -170,9 +207,34 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className={label}>Display name *</label><input className={input} value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></div>
                 <div><label className={label}>Email</label><input className={input + ' opacity-60'} value={user?.email || ''} disabled /></div>
-                <div><label className={label}>Phone</label><input className={input} value={form.phone || ''} onChange={(e) => update('phone', e.target.value)} placeholder="+92..." /></div>
+                <div>
+                  <label className={label}>Phone</label>
+                  <div className="flex gap-2">
+                    <select
+                      className={input + ' w-32 shrink-0'}
+                      value={phoneCountryCode}
+                      onChange={(e) => {
+                        const code = e.target.value
+                        const country = countries.find((item) => item.code === code)
+                        if (country) handleCountryChange(country.name)
+                      }}
+                      aria-label="Phone country code"
+                    >
+                      <option value="">Code</option>
+                      {countries.map((item) => <option key={item.name} value={item.code}>{item.code}</option>)}
+                    </select>
+                    <input className={input} value={form.phone || ''} onChange={(e) => handlePhoneChange(e.target.value)} placeholder="+92 300 1234567" />
+                  </div>
+                  <p className="text-[10px] text-[#86948a] mt-1">Country code is linked to your selected country.</p>
+                </div>
                 <div><label className={label}>Job title</label><input className={input} value={form.jobTitle || ''} onChange={(e) => update('jobTitle', e.target.value)} placeholder="e.g. Managing Partner" /></div>
-                <div><label className={label}>Country</label><input className={input} value={form.country || ''} onChange={(e) => update('country', e.target.value)} /></div>
+                <div>
+                  <label className={label}>Country</label>
+                  <select className={input} value={form.country || ''} onChange={(e) => handleCountryChange(e.target.value)}>
+                    <option value="">Select country</option>
+                    {countries.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
+                  </select>
+                </div>
                 <div>
                   <label className={label}>Profile photo</label>
                   <div className="flex items-center gap-3">
