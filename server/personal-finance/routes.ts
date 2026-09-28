@@ -228,7 +228,7 @@ router.get('/liabilities', async (req, res) => {
     db.select().from(personalProperties).where(and(eq(personalProperties.userId, currentUserId), eq(personalProperties.status, 'active'))),
   ])
   const propertyMortgages = properties
-    .filter((property) => Number(property.mortgageBalance) > 0)
+    .filter((property: typeof personalProperties.$inferSelect) => Number(property.mortgageBalance) > 0)
     .map((property: typeof personalProperties.$inferSelect) => ({
       id: 'property-mortgage:' + property.id,
       userId: currentUserId,
