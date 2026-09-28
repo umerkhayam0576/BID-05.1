@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { Router } from 'express'
 import { db } from '../db'
-import { personalAccounts, personalTransactions, personalAssets, personalLiabilities } from '../db/app-schema'
+import { personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalProperties } from '../db/app-schema'
 import { getAuthenticatedUserId } from '../auth/middleware'
 
 const router = Router()
@@ -184,6 +184,54 @@ router.put('/liabilities/:id', async (req, res) => {
 router.delete('/liabilities/:id', async (req, res) => {
   const [liability] = await db.update(personalLiabilities).set({ status: 'inactive' }).where(and(eq(personalLiabilities.id, req.params.id), eq(personalLiabilities.userId, userId(req)), eq(personalLiabilities.status, 'active'))).returning({ id: personalLiabilities.id })
   if (!liability) return res.status(404).json({ error: 'Personal liability not found' })
+  res.json({ ok: true })
+})
+
+
+router.get('/properties', async (req, res) => {
+  res.json(await db.select().from(personalProperties).where(and(eq(personalProperties.userId, userId(req)), eq(personalProperties.status, 'active'))).orderBy(desc(personalProperties.createdAt)))
+})
+router.post('/properties', async (req, res) => {
+  try {
+    const [property] = await db.insert(personalProperties).values({
+      userId: userId(req),
+      name: textValue(req.body?.name, 'name'),
+      propertyType: textValue(req.body?.propertyType, 'propertyType'),
+      location: typeof req.body?.location === 'string' ? req.body.location : null,
+      purchaseDate: typeof req.body?.purchaseDate === 'string' && req.body.purchaseDate ? req.body.purchaseDate : null,
+      purchasePrice: amount(req.body?.purchasePrice ?? 0, 'purchasePrice'),
+      currentValue: amount(req.body?.currentValue ?? 0, 'currentValue'),
+      currency: typeof req.body?.currency === 'string' ? req.body.currency.trim().toUpperCase() : 'USD',
+      mortgageBalance: amount(req.body?.mortgageBalance ?? 0, 'mortgageBalance'),
+      monthlyPayment: amount(req.body?.monthlyPayment ?? 0, 'monthlyPayment'),
+      rentalIncome: amount(req.body?.rentalIncome ?? 0, 'rentalIncome'),
+      notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
+    }).returning()
+    res.status(201).json(property)
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create property' }) }
+})
+router.put('/properties/:id', async (req, res) => {
+  try {
+    const [property] = await db.update(personalProperties).set({
+      name: textValue(req.body?.name, 'name'),
+      propertyType: textValue(req.body?.propertyType, 'propertyType'),
+      location: typeof req.body?.location === 'string' ? req.body.location : null,
+      purchaseDate: typeof req.body?.purchaseDate === 'string' && req.body.purchaseDate ? req.body.purchaseDate : null,
+      purchasePrice: amount(req.body?.purchasePrice ?? 0, 'purchasePrice'),
+      currentValue: amount(req.body?.currentValue ?? 0, 'currentValue'),
+      currency: typeof req.body?.currency === 'string' ? req.body.currency.trim().toUpperCase() : 'USD',
+      mortgageBalance: amount(req.body?.mortgageBalance ?? 0, 'mortgageBalance'),
+      monthlyPayment: amount(req.body?.monthlyPayment ?? 0, 'monthlyPayment'),
+      rentalIncome: amount(req.body?.rentalIncome ?? 0, 'rentalIncome'),
+      notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
+    }).where(and(eq(personalProperties.id, req.params.id), eq(personalProperties.userId, userId(req)), eq(personalProperties.status, 'active'))).returning()
+    if (!property) return res.status(404).json({ error: 'Personal property not found' })
+    res.json(property)
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update property' }) }
+})
+router.delete('/properties/:id', async (req, res) => {
+  const [property] = await db.update(personalProperties).set({ status: 'inactive' }).where(and(eq(personalProperties.id, req.params.id), eq(personalProperties.userId, userId(req)), eq(personalProperties.status, 'active'))).returning({ id: personalProperties.id })
+  if (!property) return res.status(404).json({ error: 'Personal property not found' })
   res.json({ ok: true })
 })
 
