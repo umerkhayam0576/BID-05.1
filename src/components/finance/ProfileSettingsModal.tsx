@@ -45,6 +45,8 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState('')
 
   useEffect(() => {
     if (!isOpen) return
@@ -59,6 +61,7 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
         setProfile(data.profile)
         setDisplayName(data.user.displayName || '')
         setForm({ ...defaultProfile, ...data.profile })
+        setPhotoPreview(data.profile?.avatarUrl || '')
       })
       .catch((err) => setError(err.message || 'Unable to load profile'))
       .finally(() => setLoading(false))
@@ -74,15 +77,36 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
     if (!form) return
     setSaving(true); setMessage(''); setError('')
     try {
+      let avatarUrl = form.avatarUrl || ''
+      if (photoFile) {
+        const reader = new FileReader()
+        const photoData = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(String(reader.result || ''))
+          reader.onerror = () => reject(new Error('Unable to read the selected image'))
+          reader.readAsDataURL(photoFile)
+        })
+        const photoRes = await fetch('/api/auth/profile/photo', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ photo: photoData }),
+        })
+        const photoDataResult = await photoRes.json()
+        if (!photoRes.ok) throw new Error(photoDataResult.error || 'Unable to upload profile photo')
+        avatarUrl = photoDataResult.avatarUrl
+      }
+
       const res = await fetch('/api/auth/profile', {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ displayName, ...form }),
+        body: JSON.stringify({ displayName, ...form, avatarUrl }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Unable to save profile')
       setUser(data.user); setProfile(data.profile); setForm({ ...defaultProfile, ...data.profile })
+      setPhotoFile(null)
+      setPhotoPreview(data.profile?.avatarUrl || '')
       setMessage('Profile settings saved.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save profile')
@@ -149,7 +173,27 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
                 <div><label className={label}>Phone</label><input className={input} value={form.phone || ''} onChange={(e) => update('phone', e.target.value)} placeholder="+92..." /></div>
                 <div><label className={label}>Job title</label><input className={input} value={form.jobTitle || ''} onChange={(e) => update('jobTitle', e.target.value)} placeholder="e.g. Managing Partner" /></div>
                 <div><label className={label}>Country</label><input className={input} value={form.country || ''} onChange={(e) => update('country', e.target.value)} /></div>
-                <div><label className={label}>Profile photo URL</label><input className={input} value={form.avatarUrl || ''} onChange={(e) => update('avatarUrl', e.target.value)} placeholder="https://..." /></div>
+                <div>
+                  <label className={label}>Profile photo</label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-full overflow-hidden border border-[#2d3449] bg-[#0b1326] flex items-center justify-center shrink-0">
+                      {photoPreview ? <img src={photoPreview} alt="Profile preview" className="w-full h-full object-cover" /> : <span className="text-xs text-[#86948a]">Photo</span>}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <input
+                        className="block w-full text-xs text-[#bbcabf] file:mr-3 file:rounded-md file:border-0 file:bg-[#222a3d] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#dae2fd]"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null
+                          setPhotoFile(file)
+                          if (file) setPhotoPreview(URL.createObjectURL(file))
+                        }}
+                      />
+                      <p className="text-[10px] text-[#86948a] mt-1">JPG, PNG, or WebP · max 5 MB</p>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div><label className={label}>About</label><textarea className={input + ' h-24 py-2 resize-none'} value={form.bio || ''} onChange={(e) => update('bio', e.target.value)} placeholder="Short professional bio" /></div>
               <div className="flex justify-end"><button type="button" disabled={saving} onClick={saveProfile} className="px-4 py-2 rounded-md bg-[#4edea3] text-[#003824] text-xs font-semibold disabled:opacity-50">{saving ? 'Saving...' : 'Save profile'}</button></div>
