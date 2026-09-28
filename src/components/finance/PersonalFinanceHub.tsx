@@ -38,12 +38,14 @@ import { PersonalPropertiesView } from './PersonalPropertiesView';
 
 interface PersonalFinanceHubProps {
   onSwitchWorkspace: (ws: 'personal-finance' | 'pre-con-estimating') => void;
+  onOpenStudio: () => void;
   activeWorkspace: 'personal-finance' | 'pre-con-estimating';
   onLogout: () => void;
 }
 
 export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
   onSwitchWorkspace,
+  onOpenStudio,
   activeWorkspace,
   onLogout,
 }) => {
@@ -409,6 +411,7 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
           onSelectEntity={handleSelectEntity}
           companies={companies}
           onOpenAddCompany={() => setIsAddCompanyOpen(true)}
+          onOpenStudio={onOpenStudio}
           isMobileOpen={isMobileMenuOpen}
           onCloseMobile={() => setIsMobileMenuOpen(false)}
         />
