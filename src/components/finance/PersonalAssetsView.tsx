@@ -17,6 +17,7 @@ export const PersonalAssetsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState<PersonalAsset | null>(null);
   const [form, setForm] = useState({
     name: '',
     assetType: 'equipment',
@@ -29,7 +30,7 @@ export const PersonalAssetsView: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/personal-finance/assets', { credentials: 'include' });
+      const response = await fetch(editing ? '/api/personal-finance/assets/' + editing.id : '/api/personal-finance/assets', { credentials: 'include' });
       if (!response.ok) throw new Error('Could not load personal assets');
       setAssets(await response.json());
     } catch (err) {
@@ -59,7 +60,7 @@ export const PersonalAssetsView: React.FC = () => {
     setError('');
     try {
       const response = await fetch('/api/personal-finance/assets', {
-        method: 'POST',
+        method: editing ? 'PUT' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -74,7 +75,8 @@ export const PersonalAssetsView: React.FC = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not save asset');
 
-      setAssets((current) => [data, ...current]);
+      setAssets((current) => editing ? current.map((asset) => asset.id === data.id ? data : asset) : [data, ...current]);
+      setEditing(null);
       setForm({
         name: '',
         assetType: 'equipment',
@@ -87,6 +89,13 @@ export const PersonalAssetsView: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const removeAsset = async (asset: PersonalAsset) => {
+    if (!window.confirm('Remove "' + asset.name + '"? It will be archived.')) return;
+    const response = await fetch('/api/personal-finance/assets/' + asset.id, { method: 'DELETE', credentials: 'include' });
+    if (!response.ok) { const data = await response.json(); setError(data.error || 'Could not remove asset'); return; }
+    setAssets((current) => current.filter((item) => item.id !== asset.id));
   };
 
   return (
@@ -120,7 +129,7 @@ export const PersonalAssetsView: React.FC = () => {
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-5">
         <form onSubmit={addAsset} className="xl:col-span-1 bg-[#131b2e] border border-[#222a3d] rounded-xl p-5 space-y-4">
           <div>
-            <h2 className="font-['Manrope'] font-bold text-lg text-[#dae2fd]">Add Asset</h2>
+            <h2 className="font-['Manrope'] font-bold text-lg text-[#dae2fd]">{editing ? 'Edit Asset' : 'Add Asset'}</h2>
             <p className="text-xs text-[#bbcabf] mt-1">This saves directly to PostgreSQL.</p>
           </div>
 
@@ -189,8 +198,9 @@ export const PersonalAssetsView: React.FC = () => {
             className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 px-4 py-2.5 text-sm font-bold text-[#003824] transition-colors"
           >
             <span className="material-symbols-outlined text-sm">add</span>
-            {saving ? 'Saving...' : 'Add Personal Asset'}
+            {saving ? 'Saving...' : editing ? 'Update Asset' : 'Add Personal Asset'}
           </button>
+          {editing && <button type="button" onClick={() => { setEditing(null); setForm({ name: '', assetType: 'equipment', currentValue: '', currency: 'USD', notes: '' }); }} className="w-full text-xs text-[#86948a]">Cancel edit</button>}
         </form>
 
         <section className="xl:col-span-2 bg-[#131b2e] border border-[#222a3d] rounded-xl overflow-hidden">
