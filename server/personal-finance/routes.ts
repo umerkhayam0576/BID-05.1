@@ -51,6 +51,19 @@ function amount(value: unknown, field: string) {
   return numberValue.toFixed(2)
 }
 
+async function createPersonalNotification(input: { recipientUserId: string; type: string; title: string; body: string; entityType?: string; entityId?: string }) {
+  await db.insert(notifications).values({
+    workspaceId: null,
+    recipientUserId: input.recipientUserId,
+    type: input.type,
+    title: input.title,
+    body: input.body,
+    entityType: input.entityType || null,
+    entityId: input.entityId || null,
+    desktopRequested: false,
+  })
+}
+
 async function syncAllPropertyRentalIncome(currentUserId: string) {
   const properties = await db.select().from(personalProperties).where(and(
     eq(personalProperties.userId, currentUserId),
@@ -117,6 +130,7 @@ router.post('/accounts', async (req, res) => {
       currency: typeof req.body?.currency === 'string' ? req.body.currency.trim().toUpperCase() : 'USD',
       openingBalance: amount(req.body?.openingBalance ?? 0, 'openingBalance'),
     }).returning()
+    await createPersonalNotification({ recipientUserId: account.userId, type: 'personal_account_created', title: 'Personal account added', body: `Personal account "${account.name}" was added.`, entityType: 'personal_account', entityId: account.id })
     res.status(201).json(account)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create account' }) }
 })
@@ -130,6 +144,7 @@ router.put('/accounts/:id', async (req, res) => {
       openingBalance: amount(req.body?.openingBalance ?? 0, 'openingBalance'),
     }).where(and(eq(personalAccounts.id, req.params.id), eq(personalAccounts.userId, currentUserId), eq(personalAccounts.status, 'active'))).returning()
     if (!account) return res.status(404).json({ error: 'Personal account not found' })
+    await createPersonalNotification({ recipientUserId: account.userId, type: 'personal_account_updated', title: 'Personal account updated', body: `Personal account "${account.name}" was updated.`, entityType: 'personal_account', entityId: account.id })
     res.json(account)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update account' }) }
 })
@@ -137,6 +152,7 @@ router.delete('/accounts/:id', async (req, res) => {
   const [account] = await db.update(personalAccounts).set({ status: 'inactive' })
     .where(and(eq(personalAccounts.id, req.params.id), eq(personalAccounts.userId, userId(req)), eq(personalAccounts.status, 'active'))).returning({ id: personalAccounts.id })
   if (!account) return res.status(404).json({ error: 'Personal account not found' })
+  await createPersonalNotification({ recipientUserId: userId(req), type: 'personal_account_removed', title: 'Personal account removed', body: 'A personal account was removed.', entityType: 'personal_account', entityId: account.id })
   res.json({ ok: true })
 })
 
@@ -163,6 +179,7 @@ router.post('/transactions', async (req, res) => {
       amount: amount(req.body?.amount, 'amount'), transactionDate: textValue(req.body?.transactionDate, 'transactionDate'),
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).returning()
+    await createPersonalNotification({ recipientUserId: transaction.userId, type: 'personal_transaction_created', title: 'Personal transaction added', body: `${transaction.transactionType === 'income' ? 'Income' : 'Expense'} of ${transaction.amount} was added.`, entityType: 'personal_transaction', entityId: transaction.id })
     res.status(201).json(transaction)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create transaction' }) }
 })
@@ -180,12 +197,14 @@ router.put('/transactions/:id', async (req, res) => {
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).where(and(eq(personalTransactions.id, req.params.id), eq(personalTransactions.userId, currentUserId))).returning()
     if (!transaction) return res.status(404).json({ error: 'Personal transaction not found' })
+    await createPersonalNotification({ recipientUserId: transaction.userId, type: 'personal_transaction_updated', title: 'Personal transaction updated', body: 'A personal transaction was updated.', entityType: 'personal_transaction', entityId: transaction.id })
     res.json(transaction)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update transaction' }) }
 })
 router.delete('/transactions/:id', async (req, res) => {
   const [transaction] = await db.delete(personalTransactions).where(and(eq(personalTransactions.id, req.params.id), eq(personalTransactions.userId, userId(req)))).returning({ id: personalTransactions.id })
   if (!transaction) return res.status(404).json({ error: 'Personal transaction not found' })
+  await createPersonalNotification({ recipientUserId: userId(req), type: 'personal_transaction_removed', title: 'Personal transaction removed', body: 'A personal transaction was removed.', entityType: 'personal_transaction', entityId: transaction.id })
   res.json({ ok: true })
 })
 
@@ -200,6 +219,7 @@ router.post('/assets', async (req, res) => {
       currency: typeof req.body?.currency === 'string' ? req.body.currency.trim().toUpperCase() : 'USD',
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).returning()
+    await createPersonalNotification({ recipientUserId: asset.userId, type: 'personal_asset_created', title: 'Personal asset added', body: `Asset "${asset.name}" was added.`, entityType: 'personal_asset', entityId: asset.id })
     res.status(201).json(asset)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create asset' }) }
 })
@@ -212,12 +232,14 @@ router.put('/assets/:id', async (req, res) => {
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).where(and(eq(personalAssets.id, req.params.id), eq(personalAssets.userId, userId(req)), eq(personalAssets.status, 'active'))).returning()
     if (!asset) return res.status(404).json({ error: 'Personal asset not found' })
+    await createPersonalNotification({ recipientUserId: asset.userId, type: 'personal_asset_updated', title: 'Personal asset updated', body: `Asset "${asset.name}" was updated.`, entityType: 'personal_asset', entityId: asset.id })
     res.json(asset)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update asset' }) }
 })
 router.delete('/assets/:id', async (req, res) => {
   const [asset] = await db.update(personalAssets).set({ status: 'inactive' }).where(and(eq(personalAssets.id, req.params.id), eq(personalAssets.userId, userId(req)), eq(personalAssets.status, 'active'))).returning({ id: personalAssets.id })
   if (!asset) return res.status(404).json({ error: 'Personal asset not found' })
+  await createPersonalNotification({ recipientUserId: userId(req), type: 'personal_asset_removed', title: 'Personal asset removed', body: 'A personal asset was removed.', entityType: 'personal_asset', entityId: asset.id })
   res.json({ ok: true })
 })
 
@@ -296,6 +318,7 @@ router.post('/liabilities/:id/payments', async (req, res) => {
         interestAmount: interestAmount.toFixed(2), balanceAfter: balanceAfter.toFixed(2),
         notes: typeof req.body?.notes === 'string' ? req.body.notes.trim() || null : null,
       }).returning()
+      await createPersonalNotification({ recipientUserId: currentUserId, type: 'personal_debt_payment_recorded', title: 'Debt payment recorded', body: `A payment of ${payment.amount} was recorded. Remaining balance: ${payment.balanceAfter}.`, entityType: 'personal_debt_payment', entityId: payment.id })
       return res.status(201).json(payment)
     }
 
@@ -316,6 +339,7 @@ router.post('/liabilities/:id/payments', async (req, res) => {
       interestAmount: interestAmount.toFixed(2), balanceAfter: balanceAfter.toFixed(2),
       notes: typeof req.body?.notes === 'string' ? req.body.notes.trim() || null : null,
     }).returning()
+    await createPersonalNotification({ recipientUserId: currentUserId, type: 'personal_debt_payment_recorded', title: 'Debt payment recorded', body: `A payment of ${payment.amount} was recorded. Remaining balance: ${payment.balanceAfter}.`, entityType: 'personal_debt_payment', entityId: payment.id })
     res.status(201).json(payment)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to record payment' }) }
 })
@@ -386,7 +410,8 @@ router.post('/money-relationships', async (req, res) => {
       entityId: relationship.id,
       desktopRequested: false,
     })
-    res.status(201).json({ ...relationship, requestStatus: 'pending' })
+
+    await createPersonalNotification({ recipientUserId: currentUserId, type: 'personal_loan_request_sent', title: 'Loan request sent', body: `Your personal loan request for ${currency} ${originalAmount.toFixed(2)} was sent.`, entityType: 'personal_money_relationship', entityId: relationship.id })    res.status(201).json({ ...relationship, requestStatus: 'pending' })
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create money relationship' })
   }
@@ -416,10 +441,36 @@ router.post('/money-relationships/:id/respond', async (req, res) => {
       entityId: relationship.id,
       desktopRequested: false,
     })
-    res.json(updated)
+
+    await createPersonalNotification({ recipientUserId: currentUserId, type: 'personal_loan_request_response', title: decision === 'accept' ? 'Loan request accepted' : 'Loan request declined', body: decision === 'accept' ? 'The shared loan is now active.' : 'The loan request was declined.', entityType: 'personal_money_relationship', entityId: relationship.id })    res.json(updated)
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to respond to loan request' })
   }
+})
+
+router.get('/notifications', async (req, res) => {
+  const currentUserId = userId(req)
+  const rows = await db.select().from(notifications)
+    .where(eq(notifications.recipientUserId, currentUserId))
+    .orderBy(desc(notifications.createdAt))
+    .limit(100)
+  res.json(rows)
+})
+
+router.post('/notifications/:id/read', async (req, res) => {
+  const currentUserId = userId(req)
+  const [notification] = await db.update(notifications).set({ readAt: new Date() })
+    .where(and(eq(notifications.id, req.params.id), eq(notifications.recipientUserId, currentUserId), eq(notifications.readAt, null)))
+    .returning()
+  if (!notification) return res.status(404).json({ error: 'Notification not found' })
+  res.json(notification)
+})
+
+router.post('/notifications/read-all', async (req, res) => {
+  const currentUserId = userId(req)
+  await db.update(notifications).set({ readAt: new Date() })
+    .where(and(eq(notifications.recipientUserId, currentUserId), eq(notifications.readAt, null)))
+  res.json({ ok: true })
 })
 
 router.get('/money-relationship-notifications', async (req, res) => {
@@ -501,6 +552,8 @@ router.post('/money-relationships/:id/settlements', async (req, res) => {
       })
     }
 
+    await createPersonalNotification({ recipientUserId: relationship.borrowerUserId, type: 'personal_loan_payment', title: 'Loan payment recorded', body: `A payment of ${paymentAmount.toFixed(2)} ${relationship.currency} was recorded. Remaining balance: ${remainingAfter.toFixed(2)} ${relationship.currency}.`, entityType: 'personal_money_relationship', entityId: relationship.id })
+    await createPersonalNotification({ recipientUserId: relationship.lenderUserId, type: 'personal_loan_payment', title: 'Loan payment received', body: `A payment of ${paymentAmount.toFixed(2)} ${relationship.currency} was recorded. Remaining balance: ${remainingAfter.toFixed(2)} ${relationship.currency}.`, entityType: 'personal_money_relationship', entityId: relationship.id })
     res.status(201).json({ settlement, relationship: { ...relationship, remainingAmount: remainingAfter.toFixed(2), status: remainingAfter <= 0.01 ? 'paid_off' : 'partially_paid' } })
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to record settlement' })
@@ -544,6 +597,7 @@ router.post('/liabilities', async (req, res) => {
       currency: typeof req.body?.currency === 'string' ? req.body.currency.trim().toUpperCase() : 'USD',
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).returning()
+    await createPersonalNotification({ recipientUserId: liability.userId, type: 'personal_liability_created', title: 'Personal liability added', body: `Liability "${liability.name}" was added with balance ${liability.currency} ${liability.currentBalance}.`, entityType: 'personal_liability', entityId: liability.id })
     res.status(201).json(liability)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create liability' }) }
 })
@@ -562,12 +616,14 @@ router.put('/liabilities/:id', async (req, res) => {
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).where(and(eq(personalLiabilities.id, req.params.id), eq(personalLiabilities.userId, userId(req)), eq(personalLiabilities.status, 'active'))).returning()
     if (!liability) return res.status(404).json({ error: 'Personal liability not found' })
+    await createPersonalNotification({ recipientUserId: liability.userId, type: 'personal_liability_updated', title: 'Personal liability updated', body: `Liability "${liability.name}" was updated.`, entityType: 'personal_liability', entityId: liability.id })
     res.json(liability)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update liability' }) }
 })
 router.delete('/liabilities/:id', async (req, res) => {
   const [liability] = await db.update(personalLiabilities).set({ status: 'inactive' }).where(and(eq(personalLiabilities.id, req.params.id), eq(personalLiabilities.userId, userId(req)), eq(personalLiabilities.status, 'active'))).returning({ id: personalLiabilities.id })
   if (!liability) return res.status(404).json({ error: 'Personal liability not found' })
+  await createPersonalNotification({ recipientUserId: userId(req), type: 'personal_liability_removed', title: 'Personal liability removed', body: 'A personal liability was removed.', entityType: 'personal_liability', entityId: liability.id })
   res.json({ ok: true })
 })
 
@@ -592,6 +648,7 @@ router.post('/properties', async (req, res) => {
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).returning()
     await syncPropertyRentalIncome(property)
+    await createPersonalNotification({ recipientUserId: property.userId, type: 'personal_property_created', title: 'Property added', body: `Property "${property.name}" was added.`, entityType: 'personal_property', entityId: property.id })
     res.status(201).json(property)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create property' }) }
 })
@@ -612,12 +669,14 @@ router.put('/properties/:id', async (req, res) => {
     }).where(and(eq(personalProperties.id, req.params.id), eq(personalProperties.userId, userId(req)), eq(personalProperties.status, 'active'))).returning()
     if (!property) return res.status(404).json({ error: 'Personal property not found' })
     await syncPropertyRentalIncome(property)
+    await createPersonalNotification({ recipientUserId: property.userId, type: 'personal_property_updated', title: 'Property updated', body: `Property "${property.name}" was updated.`, entityType: 'personal_property', entityId: property.id })
     res.json(property)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update property' }) }
 })
 router.delete('/properties/:id', async (req, res) => {
   const [property] = await db.update(personalProperties).set({ status: 'inactive' }).where(and(eq(personalProperties.id, req.params.id), eq(personalProperties.userId, userId(req)), eq(personalProperties.status, 'active'))).returning({ id: personalProperties.id })
   if (!property) return res.status(404).json({ error: 'Personal property not found' })
+  await createPersonalNotification({ recipientUserId: userId(req), type: 'personal_property_removed', title: 'Property removed', body: 'A personal property was removed.', entityType: 'personal_property', entityId: property.id })
   res.json({ ok: true })
 })
 
