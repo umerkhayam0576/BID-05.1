@@ -1,4 +1,6 @@
 import { Request, Router } from 'express'
+import fs from 'fs/promises'
+import path from 'path'
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import { db } from '../db'
 import { users, userCredentials, userSessions, userProfiles } from '../db/app-schema'
@@ -143,6 +145,51 @@ authRoutes.get('/profile', async (req, res) => {
     return res.json({ user, profile })
   } catch {
     return res.status(500).json({ error: 'Unable to read profile' })
+  }
+})
+
+authRoutes.post('/profile/photo', async (req, res) => {
+  try {
+    const token = readCookie(req, SESSION_COOKIE_NAME)
+    if (!token) return res.status(401).json({ error: 'Authentication required' })
+
+    const [session] = await db.select({ userId: userSessions.userId })
+      .from(userSessions)
+      .where(and(eq(userSessions.tokenHash, hashSessionToken(token)), isNull(userSessions.revokedAt), gt(userSessions.expiresAt, new Date())))
+      .limit(1)
+    if (!session) return res.status(401).json({ error: 'Authentication required' })
+
+    const photo = typeof req.body?.photo === 'string' ? req.body.photo : ''
+    const match = photo.match(/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/)
+    if (!match) return res.status(400).json({ error: 'Please upload a JPG, PNG, or WebP image.' })
+
+    const mime = match[1]
+    const base64 = match[2]
+    const bytes = Buffer.from(base64, 'base64')
+    if (!bytes.length || bytes.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Profile photo must be 5 MB or smaller.' })
+    }
+
+    const extension = mime === 'image/jpeg' ? 'jpg' : mime === 'image/png' ? 'png' : 'webp'
+    const uploadDir = path.join(process.cwd(), 'uploads', 'profile')
+    await fs.mkdir(uploadDir, { recursive: true })
+
+    for (const oldExtension of ['jpg', 'png', 'webp']) {
+      if (oldExtension !== extension) {
+        await fs.rm(path.join(uploadDir, `${session.userId}.${oldExtension}`), { force: true })
+      }
+    }
+
+    await fs.writeFile(path.join(uploadDir, `${session.userId}.${extension}`), bytes)
+    const avatarUrl = `/uploads/profile/${session.userId}.${extension}`
+
+    await db.update(userProfiles)
+      .set({ avatarUrl, updatedAt: new Date() })
+      .where(eq(userProfiles.userId, session.userId))
+
+    return res.json({ avatarUrl })
+  } catch {
+    return res.status(500).json({ error: 'Unable to upload profile photo' })
   }
 })
 
