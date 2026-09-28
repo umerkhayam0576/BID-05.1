@@ -44,6 +44,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [viewingDoc, setViewingDoc] = useState<string | null>(null);
   const [isCompanyImportOpen, setIsCompanyImportOpen] = useState(false);
+  const [legalSection, setLegalSection] = useState<'Ownership' | 'Agreements' | 'Legal Documents' | 'Approvals' | 'Signatures' | 'Audit History'>('Ownership');
 
   // Dilution Simulator State
   const [raiseAmount, setRaiseAmount] = useState<number>(250000);
@@ -303,71 +304,132 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                 <button
                   key={section}
                   type="button"
-                  className="px-3.5 py-2 rounded-md bg-[#131b2e] border border-[#4edea3]/30 text-[#4edea3] text-xs font-mono font-bold cursor-pointer hover:bg-[#1a243b] transition-colors"
+                  onClick={() => setLegalSection(section as typeof legalSection)}
+                  className={`px-3.5 py-2 rounded-md text-xs font-mono font-bold cursor-pointer transition-colors ${legalSection === section ? 'bg-[#4edea3]/10 border border-[#4edea3] text-[#4edea3]' : 'bg-[#131b2e] border border-[#4edea3]/30 text-[#4edea3] hover:bg-[#1a243b]'}`}
                 >
                   {section}
                 </button>
               ))}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Owners</div>
-                <div className="text-2xl font-bold text-[#dae2fd] mt-2">{company.capTable.length}</div>
-              </div>
-              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Ownership</div>
-                <div className="text-2xl font-bold text-[#4edea3] mt-2">{company.capTable.reduce((sum, member) => sum + member.percentage, 0).toFixed(2)}%</div>
-              </div>
-              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Current Structure</div>
-                <div className="text-2xl font-bold text-[#dae2fd] mt-2">{company.ownershipType}</div>
-              </div>
-              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Status</div>
-                <div className="text-2xl font-bold text-[#4edea3] mt-2">Active</div>
-              </div>
-            </div>
-
-            <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg overflow-hidden">
-              <div className="p-5 border-b border-[#222a3d] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h2 className="font-['Manrope'] font-bold text-lg text-[#dae2fd]">Ownership Structure</h2>
-                  <p className="text-xs text-[#bbcabf] font-mono mt-1">Current ownership snapshot for {company.name}</p>
-                </div>
-                <span className="text-xs font-mono px-2.5 py-1 rounded bg-[#4edea3]/10 text-[#4edea3] border border-[#4edea3]/30">100% target structure</span>
-              </div>
-              <div className="divide-y divide-[#222a3d]">
-                {company.capTable.map((member, index) => (
-                  <div key={index} className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-[#0b1326] border border-[#222a3d] flex items-center justify-center text-[#4edea3] font-mono font-bold">
-                        {member.name.split(/\\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-bold text-[#dae2fd] truncate">{member.name}</div>
-                        <div className="text-xs text-[#bbcabf] font-mono">{member.role}</div>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-6 text-right font-mono text-xs">
-                      <div><div className="text-[#bbcabf]">Ownership</div><div className="text-[#4edea3] font-bold mt-1">{member.percentage}%</div></div>
-                      <div><div className="text-[#bbcabf]">Voting</div><div className="text-[#dae2fd] font-bold mt-1">{member.votingRights ? 'Enabled' : 'None'}</div></div>
-                    </div>
+            {legalSection === 'Ownership' && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                    <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Owners</div>
+                    <div className="text-2xl font-bold text-[#dae2fd] mt-2">{company.capTable.length}</div>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                    <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Ownership</div>
+                    <div className="text-2xl font-bold text-[#4edea3] mt-2">{company.capTable.reduce((sum, member) => sum + member.percentage, 0).toFixed(2)}%</div>
+                  </div>
+                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                    <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Current Structure</div>
+                    <div className="text-2xl font-bold text-[#dae2fd] mt-2">{company.ownershipType}</div>
+                  </div>
+                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                    <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Status</div>
+                    <div className="text-2xl font-bold text-[#4edea3] mt-2">Active</div>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                <h3 className="font-bold text-[#dae2fd] mb-2">Agreements</h3>
-                <p className="text-xs text-[#bbcabf] leading-relaxed">Agreement records, parties, approvals, versions, effective dates, and signed status will appear here.</p>
+                <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg overflow-hidden">
+                  <div className="p-5 border-b border-[#222a3d] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h2 className="font-['Manrope'] font-bold text-lg text-[#dae2fd]">Ownership Structure</h2>
+                      <p className="text-xs text-[#bbcabf] font-mono mt-1">Current ownership snapshot for {company.name}</p>
+                    </div>
+                    <span className="text-xs font-mono px-2.5 py-1 rounded bg-[#4edea3]/10 text-[#4edea3] border border-[#4edea3]/30">100% target structure</span>
+                  </div>
+                  <div className="divide-y divide-[#222a3d]">
+                    {company.capTable.map((member, index) => (
+                      <div key={index} className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-[#0b1326] border border-[#222a3d] flex items-center justify-center text-[#4edea3] font-mono font-bold">
+                            {member.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold text-[#dae2fd] truncate">{member.name}</div>
+                            <div className="text-xs text-[#bbcabf] font-mono">{member.role}</div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-6 text-right font-mono text-xs">
+                          <div><div className="text-[#bbcabf]">Ownership</div><div className="text-[#4edea3] font-bold mt-1">{member.percentage}%</div></div>
+                          <div><div className="text-[#bbcabf]">Voting</div><div className="text-[#dae2fd] font-bold mt-1">{member.votingRights ? 'Enabled' : 'None'}</div></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                    <h3 className="font-bold text-[#dae2fd] mb-2">Ownership History</h3>
+                    <p className="text-xs text-[#bbcabf] leading-relaxed">Historical ownership changes and effective dates will be shown here as the secure ownership API is connected.</p>
+                  </div>
+                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                    <h3 className="font-bold text-[#dae2fd] mb-2">Pending Changes</h3>
+                    <p className="text-xs text-[#bbcabf] leading-relaxed">Pending ownership change requests will appear here with approval status.</p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {legalSection === 'Agreements' && (
+              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-6 space-y-4">
+                <h2 className="font-['Manrope'] font-bold text-xl text-[#dae2fd]">Agreements</h2>
+                <p className="text-sm text-[#bbcabf]">Operating agreements, partner agreements, service agreements, and other company contracts will be managed here.</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {['Draft', 'Pending Approval', 'Active'].map((status) => (
+                    <div key={status} className="p-4 bg-[#0b1326] border border-[#222a3d] rounded-lg">
+                      <div className="text-xs font-mono text-[#bbcabf] uppercase">{status}</div>
+                      <div className="text-2xl font-bold text-[#dae2fd] mt-2">0</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                <h3 className="font-bold text-[#dae2fd] mb-2">Legal Controls</h3>
-                <p className="text-xs text-[#bbcabf] leading-relaxed">Legal documents, approval requests, signatures, and immutable audit history will be connected to the secure ownership/legal APIs.</p>
+            )}
+
+            {legalSection === 'Legal Documents' && (
+              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-6 space-y-4">
+                <h2 className="font-['Manrope'] font-bold text-xl text-[#dae2fd]">Legal Documents</h2>
+                <p className="text-sm text-[#bbcabf]">Corporate legal documents will use versioned records so older versions are never overwritten.</p>
+                <div className="p-4 bg-[#0b1326] border border-[#222a3d] rounded-lg text-xs font-mono text-[#bbcabf]">
+                  No legal documents loaded yet. The secure legal-document API is ready for the next integration step.
+                </div>
               </div>
-            </div>
+            )}
+
+            {legalSection === 'Approvals' && (
+              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-6 space-y-4">
+                <h2 className="font-['Manrope'] font-bold text-xl text-[#dae2fd]">Approvals</h2>
+                <p className="text-sm text-[#bbcabf]">Ownership and agreement approval requests will be tracked here with approver, status, comments, and decision time.</p>
+                <div className="p-4 bg-[#0b1326] border border-[#222a3d] rounded-lg text-xs font-mono text-[#bbcabf]">
+                  No pending approvals loaded yet.
+                </div>
+              </div>
+            )}
+
+            {legalSection === 'Signatures' && (
+              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-6 space-y-4">
+                <h2 className="font-['Manrope'] font-bold text-xl text-[#dae2fd]">Signatures</h2>
+                <p className="text-sm text-[#bbcabf]">Signature requests, signer identity, status, timestamps, and provider references will appear here.</p>
+                <div className="p-4 bg-[#0b1326] border border-[#222a3d] rounded-lg text-xs font-mono text-[#bbcabf]">
+                  No signature requests loaded yet. Internal approval will remain separate from legal e-signature.
+                </div>
+              </div>
+            )}
+
+            {legalSection === 'Audit History' && (
+              <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-6 space-y-4">
+                <h2 className="font-['Manrope'] font-bold text-xl text-[#dae2fd]">Audit History</h2>
+                <p className="text-sm text-[#bbcabf]">Legal and ownership actions will be recorded with actor, action, before/after data, and timestamp.</p>
+                <div className="p-4 bg-[#0b1326] border border-[#222a3d] rounded-lg text-xs font-mono text-[#bbcabf]">
+                  No audit events loaded yet.
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
