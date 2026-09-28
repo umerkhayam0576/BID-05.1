@@ -8,6 +8,7 @@ const router = Router()
 
 router.get('/summary', async (req, res) => {
   const currentUserId = userId(req)
+  await syncAllPropertyRentalIncome(currentUserId)
   const [accounts, transactions, assets, liabilities, properties] = await Promise.all([
     db.select().from(personalAccounts).where(and(eq(personalAccounts.userId, currentUserId), eq(personalAccounts.status, 'active'))),
     db.select().from(personalTransactions).where(eq(personalTransactions.userId, currentUserId)),
@@ -132,6 +133,7 @@ router.delete('/accounts/:id', async (req, res) => {
 })
 
 router.get('/transactions', async (req, res) => {
+  await syncAllPropertyRentalIncome(userId(req))
   const rows = await db.select().from(personalTransactions).where(eq(personalTransactions.userId, userId(req))).orderBy(desc(personalTransactions.transactionDate), desc(personalTransactions.id))
   res.json(rows)
 })
