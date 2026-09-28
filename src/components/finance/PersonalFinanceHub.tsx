@@ -39,11 +39,13 @@ import { PersonalPropertiesView } from './PersonalPropertiesView';
 interface PersonalFinanceHubProps {
   onSwitchWorkspace: (ws: 'personal-finance' | 'pre-con-estimating') => void;
   activeWorkspace: 'personal-finance' | 'pre-con-estimating';
+  onLogout: () => void;
 }
 
 export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
   onSwitchWorkspace,
   activeWorkspace,
+  onLogout,
 }) => {
   const [companies, setCompanies] = useState<CompanyEntity[]>(() => {
     const saved = localStorage.getItem('bid_exact_wealth_companies');
@@ -288,6 +290,7 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
           privacyMode={privacyMode}
           onTogglePrivacy={() => setPrivacyMode(!privacyMode)}
           onSwitchWorkspace={onSwitchWorkspace}
+          onLogout={onLogout}
           onUpdateCompany={(updated) => {
             setCompanies((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
           }}
@@ -307,6 +310,7 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
   return (
     <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] flex flex-col antialiased selection:bg-[#4edea3]/25 selection:text-[#4edea3] theme-surface">
       <WealthTopHeader
+        onLogout={onLogout}
         activeWorkspace={activeWorkspace}
         onSwitchWorkspace={onSwitchWorkspace}
         selectedPeriod={selectedPeriod}
