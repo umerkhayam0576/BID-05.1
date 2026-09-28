@@ -28,8 +28,10 @@ authRoutes.post('/register', async (req, res) => {
     const displayName = typeof req.body?.displayName === 'string' ? req.body.displayName.trim() : ''
     const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
     const password = typeof req.body?.password === 'string' ? req.body.password : ''
+    const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : ''
+    const country = typeof req.body?.country === 'string' ? req.body.country.trim() : ''
 
-    if (!displayName || !email || !password) return res.status(400).json({ error: 'Name, email, and password are required' })
+    if (!displayName || !email || !password || !phone || !country) return res.status(400).json({ error: 'Name, email, phone, country, and password are required' })
     if (displayName.length < 2) return res.status(400).json({ error: 'Name must be at least 2 characters' })
     if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' })
 
@@ -50,6 +52,18 @@ authRoutes.post('/register', async (req, res) => {
     await db.insert(userCredentials).values({
       userId: user.id,
       passwordHash,
+    })
+
+    const countryCodes: Record<string, string> = {
+      Pakistan: '+92', 'United States': '+1', Canada: '+1', 'United Kingdom': '+44',
+      'United Arab Emirates': '+971', 'Saudi Arabia': '+966', Qatar: '+974', Kuwait: '+965',
+      Australia: '+61', India: '+91', Germany: '+49', France: '+33',
+    }
+    const phoneCode = countryCodes[country] || ''
+    await db.insert(userProfiles).values({
+      userId: user.id,
+      phone: `${phoneCode} ${phone}`.trim(),
+      country,
     })
 
     const token = createSessionToken()
