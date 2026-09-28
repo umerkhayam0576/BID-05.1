@@ -348,4 +348,121 @@ export const personalProperties = pgTable('app_personal_properties', {
   ...timestamps,
 })
 
-export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, personalProperties }
+
+export const ownershipHistory = pgTable('app_ownership_history', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  ownerUserId: text('owner_user_id').notNull(),
+  ownershipPercent: numeric('ownership_percent', { precision: 7, scale: 4 }).default('0').notNull(),
+  profitSharePercent: numeric('profit_share_percent', { precision: 7, scale: 4 }).default('0').notNull(),
+  votingPercent: numeric('voting_percent', { precision: 7, scale: 4 }).default('0').notNull(),
+  effectiveFrom: date('effective_from').notNull(),
+  effectiveTo: date('effective_to'),
+  sourceAgreementId: uuid('source_agreement_id'),
+  changeReason: text('change_reason'),
+  status: text('status').default('active').notNull(),
+  createdAt: timestamps.createdAt,
+})
+
+export const ownershipChangeRequests = pgTable('app_ownership_change_requests', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  requestedByUserId: text('requested_by_user_id').notNull(),
+  status: text('status').default('draft').notNull(),
+  reason: text('reason'),
+  effectiveDate: date('effective_date'),
+  proposedOwnership: jsonb('proposed_ownership').default([]).notNull(),
+  agreementId: uuid('agreement_id'),
+  createdAt: timestamps.createdAt,
+  updatedAt: timestamps.updatedAt,
+})
+
+export const legalDocuments = pgTable('app_legal_documents', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  title: text('title').notNull(),
+  documentType: text('document_type').notNull(),
+  status: text('status').default('draft').notNull(),
+  effectiveDate: date('effective_date'),
+  expirationDate: date('expiration_date'),
+  currentVersionId: uuid('current_version_id'),
+  createdByUserId: text('created_by_user_id').notNull(),
+  ...timestamps,
+})
+
+export const legalDocumentVersions = pgTable('app_legal_document_versions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  documentId: uuid('document_id').notNull(),
+  versionLabel: text('version_label').notNull(),
+  filePath: text('file_path').notNull(),
+  fileName: text('file_name').notNull(),
+  mimeType: text('mime_type').notNull(),
+  fileSize: integer('file_size').default(0).notNull(),
+  status: text('status').default('draft').notNull(),
+  uploadedByUserId: text('uploaded_by_user_id').notNull(),
+  notes: text('notes'),
+  createdAt: timestamps.createdAt,
+})
+
+export const agreements = pgTable('app_agreements', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  documentId: uuid('document_id'),
+  title: text('title').notNull(),
+  agreementType: text('agreement_type').notNull(),
+  status: text('status').default('draft').notNull(),
+  effectiveDate: date('effective_date'),
+  expirationDate: date('expiration_date'),
+  signedDate: date('signed_date'),
+  createdByUserId: text('created_by_user_id').notNull(),
+  ...timestamps,
+})
+
+export const agreementParties = pgTable('app_agreement_parties', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  agreementId: uuid('agreement_id').notNull(),
+  userId: text('user_id'),
+  partyName: text('party_name').notNull(),
+  role: text('role').notNull(),
+  createdAt: timestamps.createdAt,
+})
+
+export const agreementApprovals = pgTable('app_agreement_approvals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  agreementId: uuid('agreement_id').notNull(),
+  approverUserId: text('approver_user_id').notNull(),
+  status: text('status').default('pending').notNull(),
+  comments: text('comments'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  createdAt: timestamps.createdAt,
+})
+
+export const agreementSignatures = pgTable('app_agreement_signatures', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  agreementId: uuid('agreement_id').notNull(),
+  signerUserId: text('signer_user_id'),
+  signerName: text('signer_name').notNull(),
+  status: text('status').default('pending').notNull(),
+  signedAt: timestamp('signed_at', { withTimezone: true }),
+  signatureProvider: text('signature_provider'),
+  signatureReference: text('signature_reference'),
+  createdAt: timestamps.createdAt,
+})
+
+export const legalDocumentAuditLogs = pgTable('app_legal_document_audit_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  documentId: uuid('document_id'),
+  agreementId: uuid('agreement_id'),
+  actorUserId: text('actor_user_id'),
+  action: text('action').notNull(),
+  beforeData: jsonb('before_data'),
+  afterData: jsonb('after_data'),
+  createdAt: timestamps.createdAt,
+})
+
+export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, ownershipHistory, ownershipChangeRequests, legalDocuments, legalDocumentVersions, agreements, agreementParties, agreementApprovals, agreementSignatures, legalDocumentAuditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, personalProperties }
