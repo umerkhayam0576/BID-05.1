@@ -10,10 +10,12 @@ interface WealthTopHeaderProps {
   activeWorkspace?: 'personal-finance' | 'pre-con-estimating';
   onSwitchWorkspace?: (ws: 'personal-finance' | 'pre-con-estimating') => void;
   onToggleMobileMenu?: () => void;
+  onLogout?: () => void;
 }
 
 export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
   onOpenSearch,
+  onLogout,
 }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -91,6 +93,13 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
             </div>
           )}
         </div>
+
+        {onLogout && (
+          <button type="button" onClick={onLogout} className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded text-[#ffb2b7] hover:text-white hover:bg-[#131b2e] border border-[#ff7886]/30 text-xs font-mono font-semibold transition-colors" title="Log out">
+            <span className="material-symbols-outlined text-base">logout</span>
+            <span className="hidden sm:inline">Log out</span>
+          </button>
+        )}
 
         {/* User Profile */}
         <div className="flex items-center gap-2.5 pl-2 border-l border-[#222a3d]">
