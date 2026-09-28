@@ -411,7 +411,8 @@ router.post('/money-relationships', async (req, res) => {
       desktopRequested: false,
     })
 
-    await createPersonalNotification({ recipientUserId: currentUserId, type: 'personal_loan_request_sent', title: 'Loan request sent', body: `Your personal loan request for ${currency} ${originalAmount.toFixed(2)} was sent.`, entityType: 'personal_money_relationship', entityId: relationship.id })    res.status(201).json({ ...relationship, requestStatus: 'pending' })
+    await createPersonalNotification({ recipientUserId: currentUserId, type: 'personal_loan_request_sent', title: 'Loan request sent', body: `Your personal loan request for ${currency} ${originalAmount.toFixed(2)} was sent.`, entityType: 'personal_money_relationship', entityId: relationship.id })
+    res.status(201).json({ ...relationship, requestStatus: 'pending' })
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create money relationship' })
   }
