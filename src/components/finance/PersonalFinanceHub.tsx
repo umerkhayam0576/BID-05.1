@@ -35,6 +35,7 @@ import { PersonalTransactionsView } from './PersonalTransactionsView';
 import { PersonalAssetsView } from './PersonalAssetsView';
 import { PersonalLiabilitiesView } from './PersonalLiabilitiesView';
 import { PersonalPropertiesView } from './PersonalPropertiesView';
+import { PersonalNotificationCenter } from './PersonalNotificationCenter';
 
 interface PersonalFinanceHubProps {
   onSwitchWorkspace: (ws: 'personal-finance' | 'pre-con-estimating') => void;
@@ -289,6 +290,7 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
   if (currentCompany) {
     return (
       <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] flex flex-col antialiased selection:bg-[#4edea3]/25 selection:text-[#4edea3] theme-surface">
+        <PersonalNotificationCenter />
         <CompanyWorkspaceView
           company={currentCompany}
           onReturnToConsolidated={() => setActiveEntityId(null)}
@@ -318,6 +320,7 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
 
   return (
     <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] flex flex-col antialiased selection:bg-[#4edea3]/25 selection:text-[#4edea3] theme-surface">
+        <PersonalNotificationCenter />
       {/* Top Universal Wealth & Entity Switcher Header */}
       <WealthTopHeader
         activeWorkspace={activeWorkspace}
