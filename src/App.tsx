@@ -45,6 +45,7 @@ import { ClientPortalView } from './components/views/ClientPortalView';
 import { CompanyRemindersView } from './components/views/CompanyRemindersView';
 import { EmployeePortalView } from './components/views/EmployeePortalView';
 import { ConnectedBanksView } from './components/views/ConnectedBanksView';
+import { StudioView } from './components/StudioView';
 
 // Enterprise ERP Initial System Data
 import {
@@ -636,6 +637,8 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             />
           ) : activeTab === 'employee-portal' ? (
             <EmployeePortalView />
+          ) : activeTab === 'studio' ? (
+            <StudioView />
           ) : activeTab === 'workflow-automation' ? (
             <WorkflowAutomationHub />
           ) : activeTab === 'client-portal' ? (
