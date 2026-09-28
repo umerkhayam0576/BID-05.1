@@ -1,4 +1,4 @@
-import { boolean, date, jsonb, numeric, pgTable, text, timestamp, uuid, unique } from 'drizzle-orm/pg-core'
+import { boolean, date, integer, jsonb, numeric, pgTable, text, timestamp, uuid, unique } from 'drizzle-orm/pg-core'
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
