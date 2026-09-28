@@ -22,6 +22,7 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState('Loading...');
   const [profileTitle, setProfileTitle] = useState('Personal Principal & Managing Partner');
+  const [profileAvatar, setProfileAvatar] = useState('');
   const notificationRef = useRef<HTMLDivElement>(null);
 
   // Close menus on outside click
@@ -42,6 +43,7 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
         const data = await res.json()
         setProfileName(data.user?.displayName || 'User')
         if (data.profile?.jobTitle) setProfileTitle(data.profile.jobTitle)
+        setProfileAvatar(data.profile?.avatarUrl || '')
       })
       .catch(() => setProfileName('User'))
   }, [])
@@ -132,8 +134,8 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
               {profileTitle}
             </span>
           </div>
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#10b981] to-[#3b82f6] text-[#002113] font-bold text-xs flex items-center justify-center ring-1 ring-[#3c4a42]">
-            {profileName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'U'}
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-tr from-[#10b981] to-[#3b82f6] text-[#002113] font-bold text-xs flex items-center justify-center ring-1 ring-[#3c4a42]">
+            {profileAvatar ? <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" /> : profileName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'U'}
           </div>
         </button>
 
