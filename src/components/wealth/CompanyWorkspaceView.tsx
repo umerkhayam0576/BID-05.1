@@ -58,41 +58,17 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
       setOwnershipLoading(true);
       setOwnershipError(null);
       try {
-        const entitiesResponse = await fetch('/api/entities', { credentials: 'include' });
-        const entitiesPayload = await entitiesResponse.json().catch(() => ({}));
-        if (!entitiesResponse.ok) throw new Error(entitiesPayload.error || 'Unable to load company workspace');
-        const entities = Array.isArray(entitiesPayload.entities) ? entitiesPayload.entities : [];
-        const normalizedCompanyName = company.name.trim().toLowerCase();
-        const entity = entities.find((item: any) =>
-          item.id === company.id ||
-          item.slug === company.id ||
-          String(item.name || '').trim().toLowerCase() === normalizedCompanyName
-        );
-        let linkedEntity = entity;
-        if (!linkedEntity?.id) {
-          const createResponse = await fetch('/api/entities', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              name: company.name,
-              legalStructure: 'llc',
-              industryType: company.industry === 'construction' ? 'construction_management' : 'services',
-              currency: 'USD',
-              ownershipPercent: String(company.legalOwnershipPercent || 100),
-              profitSharePercent: String(company.profitSharePercent || company.legalOwnershipPercent || 100),
-            }),
-          });
-          const createPayload = await createResponse.json().catch(() => ({}));
-          if (!createResponse.ok || !createPayload.entity?.id) {
-            throw new Error(createPayload.error || `Unable to create a database workspace for ${company.name}`);
-          }
-          linkedEntity = createPayload.entity;
+        const tenantWorkspaceId = company.workspaceId;
+        if (!tenantWorkspaceId) {
+          throw new Error('This company is not linked to a SaaS workspace yet.');
         }
 
-        if (!cancelled) setWorkspaceId(linkedEntity.id);
+        if (!cancelled) setWorkspaceId(tenantWorkspaceId);
 
-        const response = await fetch(`/api/ownership-legal/${linkedEntity.id}/ownership`, { credentials: 'include' });
+        const response = await fetch(
+          `/api/ownership-legal/${tenantWorkspaceId}/ownership`,
+          { credentials: 'include' }
+        );
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Unable to load ownership data');
         if (!cancelled) setOwnershipData(payload);
@@ -105,7 +81,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
 
     loadOwnership();
     return () => { cancelled = true; };
-  }, [activeTab, legalSection, company.id]);
+  }, [activeTab, legalSection, company.workspaceId]);
 
   // Dilution Simulator State
   const [raiseAmount, setRaiseAmount] = useState<number>(250000);
