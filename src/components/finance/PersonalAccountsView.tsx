@@ -24,6 +24,7 @@ export const PersonalAccountsView: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ name: '', accountType: 'cash', currency: 'USD', openingBalance: '' });
+  const [editing, setEditing] = useState<PersonalAccount | null>(null);
 
   const loadAccounts = async () => {
     setLoading(true);
@@ -51,8 +52,8 @@ export const PersonalAccountsView: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const response = await fetch('/api/personal-finance/accounts', {
-        method: 'POST',
+      const response = await fetch(editing ? '/api/personal-finance/accounts/' + editing.id : '/api/personal-finance/accounts',
+        method: editing ? 'PUT' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -64,13 +65,21 @@ export const PersonalAccountsView: React.FC = () => {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not create account');
-      setAccounts((current) => [data, ...current]);
+      setAccounts((current) => editing ? current.map((account) => account.id === data.id ? data : account) : [data, ...current]);
+      setEditing(null);
       setForm({ name: '', accountType: 'cash', currency: 'USD', openingBalance: '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create account');
     } finally {
       setSaving(false);
     }
+  };
+
+  const removeAccount = async (account: PersonalAccount) => {
+    if (!window.confirm('Remove "' + account.name + '"? It will be archived and its transaction history will be preserved.')) return;
+    const response = await fetch('/api/personal-finance/accounts/' + account.id, { method: 'DELETE', credentials: 'include' });
+    if (!response.ok) { const data = await response.json(); setError(data.error || 'Could not remove account'); return; }
+    setAccounts((current) => current.filter((item) => item.id !== account.id));
   };
 
   const currentBalance = (account: PersonalAccount) => transactions.reduce((balance, transaction) => {
@@ -132,6 +141,10 @@ export const PersonalAccountsView: React.FC = () => {
                       Opening {Number(account.openingBalance).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => { setEditing(account); setForm({ name: account.name, accountType: account.accountType, currency: account.currency, openingBalance: account.openingBalance }); }} className="rounded-md border border-[#2d3449] px-3 py-2 text-xs text-[#dae2fd]">Edit</button>
+                    <button type="button" onClick={() => void removeAccount(account)} className="rounded-md border border-[#ff7886]/40 bg-[#ff7886]/10 px-3 py-2 text-xs text-[#ffb4ab]">Remove</button>
+                  </div>
                 </div>
               })}
             </div>
@@ -139,8 +152,8 @@ export const PersonalAccountsView: React.FC = () => {
         </section>
 
         <section className="rounded-xl border border-[#4edea3]/30 bg-[#131b2e] p-5 h-fit">
-          <p className="text-[10px] uppercase tracking-wider text-[#4edea3] font-mono font-bold">Add account</p>
-          <h2 className="mt-1 text-lg font-bold text-[#dae2fd]">Create personal account</h2>
+          <p className="text-[10px] uppercase tracking-wider text-[#4edea3] font-mono font-bold">{editing ? 'Edit account' : 'Add account'}</p>
+          <h2 className="mt-1 text-lg font-bold text-[#dae2fd]">{editing ? 'Correct personal account' : 'Create personal account'}</h2>
           <form onSubmit={addAccount} className="mt-5 space-y-4">
             <label className="block">
               <span className="block text-xs font-semibold text-[#bbcabf] mb-1.5">Account name</span>
@@ -163,8 +176,9 @@ export const PersonalAccountsView: React.FC = () => {
               </label>
             </div>
             <button type="submit" disabled={saving} className="w-full h-10 rounded-md bg-[#4edea3] text-[#003824] text-xs font-bold disabled:opacity-60">
-              {saving ? 'Saving…' : 'Save personal account'}
+              {saving ? 'Saving…' : editing ? 'Update account' : 'Save personal account'}
             </button>
+            {editing && <button type="button" onClick={() => { setEditing(null); setForm({ name: '', accountType: 'cash', currency: 'USD', openingBalance: '' }); }} className="w-full text-xs text-[#86948a]">Cancel edit</button>}
           </form>
         </section>
       </div>
