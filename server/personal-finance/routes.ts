@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { Router } from 'express'
 import { db } from '../db'
-import { personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalProperties, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, users } from '../db/app-schema'
+import { personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalProperties, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, users, notifications } from '../db/app-schema'
 import { getAuthenticatedUserId } from '../auth/middleware'
 
 const router = Router()
@@ -325,11 +325,10 @@ router.get('/money-relationships', async (req, res) => {
   const rows = await db.select().from(personalMoneyRelationships).where(
     and(
       eq(personalMoneyRelationships.status, 'active'),
-      // The relationship is shared: either side can see the same record.
-      // Drizzle's and() cannot express OR without importing it, so fetch both
-      // directions with two small queries and merge them below.
     )
   )
+  const pendingRows = await db.select().from(personalMoneyRelationships).where(eq(personalMoneyRelationships.status, 'pending'))
+  rows.push(...pendingRows)
   const mine = rows.filter((row: typeof rows[number]) => row.borrowerUserId === currentUserId || row.lenderUserId === currentUserId)
   const otherIds = [...new Set(mine.map((row: typeof rows[number]) => row.borrowerUserId === currentUserId ? row.lenderUserId : row.borrowerUserId))]
   const people = otherIds.length
@@ -372,15 +371,63 @@ router.post('/money-relationships', async (req, res) => {
       borrowerUserId, lenderUserId, relationshipType, description,
       originalAmount: originalAmount.toFixed(2), remainingAmount: originalAmount.toFixed(2),
       currency, interestRate: Number(req.body?.interestRate || 0).toFixed(4),
-      status: 'active',
+      status: 'pending',
       startDate: typeof req.body?.startDate === 'string' && req.body.startDate ? req.body.startDate : null,
       dueDate: typeof req.body?.dueDate === 'string' && req.body.dueDate ? req.body.dueDate : null,
       notes: typeof req.body?.notes === 'string' ? req.body.notes.trim() || null : null,
     }).returning()
-    res.status(201).json(relationship)
+    await db.insert(notifications).values({
+      workspaceId: null,
+      recipientUserId: counterparty.id,
+      type: 'personal_loan_request',
+      title: 'New personal loan request',
+      body: `${(await db.select({ displayName: users.displayName }).from(users).where(eq(users.id, currentUserId)).limit(1))[0]?.displayName || 'A portal user'} sent you a personal loan request for ${currency} ${originalAmount.toFixed(2)}.`,
+      entityType: 'personal_money_relationship',
+      entityId: relationship.id,
+      desktopRequested: false,
+    })
+    res.status(201).json({ ...relationship, requestStatus: 'pending' })
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create money relationship' })
   }
+})
+
+router.post('/money-relationships/:id/respond', async (req, res) => {
+  try {
+    const currentUserId = userId(req)
+    const decision = req.body?.decision === 'accept' ? 'accept' : req.body?.decision === 'reject' ? 'reject' : ''
+    if (!decision) return res.status(400).json({ error: 'Decision must be accept or reject' })
+    const [relationship] = await db.select().from(personalMoneyRelationships)
+      .where(and(eq(personalMoneyRelationships.id, req.params.id), eq(personalMoneyRelationships.status, 'pending'))).limit(1)
+    if (!relationship) return res.status(404).json({ error: 'Pending loan request not found' })
+    if (relationship.lenderUserId !== currentUserId && relationship.borrowerUserId !== currentUserId) {
+      return res.status(403).json({ error: 'Loan request access denied' })
+    }
+    const nextStatus = decision === 'accept' ? 'active' : 'cancelled'
+    const [updated] = await db.update(personalMoneyRelationships).set({ status: nextStatus, updatedAt: new Date() })
+      .where(and(eq(personalMoneyRelationships.id, relationship.id), eq(personalMoneyRelationships.status, 'pending'))).returning()
+    await db.insert(notifications).values({
+      workspaceId: null,
+      recipientUserId: relationship.borrowerUserId === currentUserId ? relationship.lenderUserId : relationship.borrowerUserId,
+      type: 'personal_loan_request_response',
+      title: decision === 'accept' ? 'Personal loan request accepted' : 'Personal loan request declined',
+      body: decision === 'accept' ? 'Your personal loan request was accepted. The shared loan is now active.' : 'Your personal loan request was declined.',
+      entityType: 'personal_money_relationship',
+      entityId: relationship.id,
+      desktopRequested: false,
+    })
+    res.json(updated)
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to respond to loan request' })
+  }
+})
+
+router.get('/money-relationship-notifications', async (req, res) => {
+  const currentUserId = userId(req)
+  const rows = await db.select().from(notifications)
+    .where(eq(notifications.recipientUserId, currentUserId))
+    .orderBy(desc(notifications.createdAt))
+  res.json(rows.filter((row: typeof rows[number]) => row.type === 'personal_loan_request' || row.type === 'personal_loan_request_response'))
 })
 
 router.post('/money-relationships/:id/settlements', async (req, res) => {
