@@ -50,6 +50,52 @@ function amount(value: unknown, field: string) {
   return numberValue.toFixed(2)
 }
 
+async function syncPropertyRentalIncome(property: typeof personalProperties.$inferSelect) {
+  const monthlyAmount = Number(property.rentalIncome)
+  const monthStart = new Date().toISOString().slice(0, 7) + '-01'
+  const existing = await db.select().from(personalTransactions).where(and(
+    eq(personalTransactions.userId, property.userId),
+    eq(personalTransactions.sourceType, 'property-rental'),
+    eq(personalTransactions.sourceId, property.id),
+    eq(personalTransactions.transactionDate, monthStart),
+  )).limit(1)
+
+  if (monthlyAmount <= 0) {
+    if (existing[0]) await db.delete(personalTransactions).where(eq(personalTransactions.id, existing[0].id))
+    return
+  }
+
+  const [account] = await db.select().from(personalAccounts).where(and(
+    eq(personalAccounts.userId, property.userId),
+    eq(personalAccounts.status, 'active'),
+  )).orderBy(desc(personalAccounts.createdAt)).limit(1)
+  if (!account) return
+
+  if (existing[0]) {
+    await db.update(personalTransactions).set({
+      accountId: account.id,
+      transactionType: 'income',
+      category: 'Rental Income',
+      description: property.name + ' rental income',
+      amount: monthlyAmount.toFixed(2),
+    }).where(eq(personalTransactions.id, existing[0].id))
+    return
+  }
+
+  await db.insert(personalTransactions).values({
+    userId: property.userId,
+    accountId: account.id,
+    transactionType: 'income',
+    category: 'Rental Income',
+    description: property.name + ' rental income',
+    amount: monthlyAmount.toFixed(2),
+    transactionDate: monthStart,
+    notes: 'Automatically linked to the property rental income setting.',
+    sourceType: 'property-rental',
+    sourceId: property.id,
+  })
+}
+
 router.get('/accounts', async (req, res) => {
   const rows = await db.select().from(personalAccounts).where(and(eq(personalAccounts.userId, userId(req)), eq(personalAccounts.status, 'active')))
   res.json(rows)
@@ -236,6 +282,7 @@ router.post('/properties', async (req, res) => {
       rentalIncome: amount(req.body?.rentalIncome ?? 0, 'rentalIncome'),
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).returning()
+    await syncPropertyRentalIncome(property)
     res.status(201).json(property)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create property' }) }
 })
