@@ -26,7 +26,8 @@ import {
   Zap,
   Workflow,
   Percent,
-  CalendarClock
+  CalendarClock,
+  Settings
 } from 'lucide-react';
 
 export type NavTabId =
@@ -54,7 +55,8 @@ export type NavTabId =
   | 'documents'
   | 'cap-table'
   | 'audit'
-  | 'employee-portal';
+  | 'employee-portal'
+  | 'studio';
 
 interface SidebarProps {
   activeTab: NavTabId;
@@ -144,6 +146,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation Links Scrollable */}
+      <div className="px-2.5 pt-3">
+        <div className="px-2 pb-1.5 text-[10px] font-mono tracking-wider text-[#86948a] uppercase font-semibold">Platform</div>
+        <button
+          id="nav-studio"
+          onClick={() => handleNav('studio')}
+          className={`w-full flex items-center justify-between px-2.5 py-2 rounded text-xs transition-colors cursor-pointer ${activeTab === 'studio' ? 'bg-[#171f33] text-white font-medium border-l-2 border-[#4edea3]' : 'text-[#bbcabf] hover:bg-[#131b2e] hover:text-[#dae2fd]'}`}
+        >
+          <div className="flex items-center gap-2.5">
+            <Settings className={`w-3.5 h-3.5 ${activeTab === 'studio' ? 'text-[#4edea3]' : 'text-[#86948a]'}`} />
+            <span className="font-semibold">Studio</span>
+          </div>
+          <span className="font-mono text-[9px] px-1.5 py-0.5 bg-[#4edea3]/15 text-[#4edea3] rounded font-bold">ADMIN</span>
+        </button>
+      </div>
+
       <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
         {/* WORKSPACE & CASH FLOW */}
         <div>
