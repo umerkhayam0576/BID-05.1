@@ -230,6 +230,12 @@ router.get('/liabilities', async (req, res) => {
       currency: property.currency,
       status: 'linked-property',
       notes: 'Automatically linked to Real Estate & Property. Manage this mortgage from the property record.',
+      originalBalance: property.purchasePrice,
+      interestRate: '0',
+      paymentAmount: property.monthlyPayment,
+      paymentFrequency: 'monthly',
+      nextPaymentDate: null,
+      startDate: property.purchaseDate,
       createdAt: property.createdAt,
       updatedAt: property.updatedAt,
     }))
@@ -240,6 +246,12 @@ router.post('/liabilities', async (req, res) => {
     const [liability] = await db.insert(personalLiabilities).values({
       userId: userId(req), name: textValue(req.body?.name, 'name'), liabilityType: textValue(req.body?.liabilityType, 'liabilityType'),
       currentBalance: amount(req.body?.currentBalance ?? 0, 'currentBalance'),
+      originalBalance: amount(req.body?.originalBalance ?? req.body?.currentBalance ?? 0, 'originalBalance'),
+      interestRate: amount(req.body?.interestRate ?? 0, 'interestRate'),
+      paymentAmount: amount(req.body?.paymentAmount ?? 0, 'paymentAmount'),
+      paymentFrequency: typeof req.body?.paymentFrequency === 'string' ? req.body.paymentFrequency : 'monthly',
+      nextPaymentDate: typeof req.body?.nextPaymentDate === 'string' && req.body.nextPaymentDate ? req.body.nextPaymentDate : null,
+      startDate: typeof req.body?.startDate === 'string' && req.body.startDate ? req.body.startDate : null,
       currency: typeof req.body?.currency === 'string' ? req.body.currency.trim().toUpperCase() : 'USD',
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).returning()
@@ -251,6 +263,12 @@ router.put('/liabilities/:id', async (req, res) => {
     const [liability] = await db.update(personalLiabilities).set({
       name: textValue(req.body?.name, 'name'), liabilityType: textValue(req.body?.liabilityType, 'liabilityType'),
       currentBalance: amount(req.body?.currentBalance ?? 0, 'currentBalance'),
+      originalBalance: amount(req.body?.originalBalance ?? req.body?.currentBalance ?? 0, 'originalBalance'),
+      interestRate: amount(req.body?.interestRate ?? 0, 'interestRate'),
+      paymentAmount: amount(req.body?.paymentAmount ?? 0, 'paymentAmount'),
+      paymentFrequency: typeof req.body?.paymentFrequency === 'string' ? req.body.paymentFrequency : 'monthly',
+      nextPaymentDate: typeof req.body?.nextPaymentDate === 'string' && req.body.nextPaymentDate ? req.body.nextPaymentDate : null,
+      startDate: typeof req.body?.startDate === 'string' && req.body.startDate ? req.body.startDate : null,
       currency: typeof req.body?.currency === 'string' ? req.body.currency.trim().toUpperCase() : 'USD',
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).where(and(eq(personalLiabilities.id, req.params.id), eq(personalLiabilities.userId, userId(req)), eq(personalLiabilities.status, 'active'))).returning()
