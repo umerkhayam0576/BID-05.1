@@ -32,9 +32,14 @@ export const AddCompanyModal: React.FC<AddCompanyModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || isSaving) return;
+    setIsSaving(true);
+    setSaveError(null);
 
     const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
     const equityVal = (enterpriseValuation * (legalOwnership / 100));
@@ -88,12 +93,41 @@ export const AddCompanyModal: React.FC<AddCompanyModalProps> = ({
       notes: 'Connected via ExactLedger multi-entity corporate books connector.',
     };
 
-    onAddCompany(newCompany);
-    onClose();
+    try {
+      const response = await fetch('/api/entities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: newCompany.name,
+          legalStructure: 'llc',
+          industryType: newCompany.industry.toLowerCase().includes('construction')
+            ? 'construction_management'
+            : 'services',
+          currency: 'USD',
+          ownershipPercent: String(newCompany.legalOwnershipPercent),
+          profitSharePercent: String(newCompany.profitSharePercent),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.entity?.id) {
+        throw new Error(payload.error || 'Unable to create company workspace');
+      }
 
-    // Reset form
+      onAddCompany({
+        ...newCompany,
+        id: payload.entity.id,
+      });
+      onClose();
+
+      // Reset form
     setName('');
     setIndustry('');
+    } catch (error: any) {
+      setSaveError(error?.message || 'Unable to create company workspace');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const icons = [
@@ -110,7 +144,9 @@ export const AddCompanyModal: React.FC<AddCompanyModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-[#131b2e] border border-[#2d3449] rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
-        {/* Modal Header */}
+        {saveError && <div className="mx-6 mt-4 rounded-lg border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-200">{saveError}</div>}
+
+                {/* Modal Header */}
         <div className="px-6 py-4 bg-[#060e20] border-b border-[#222a3d] flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <span className="material-symbols-outlined text-[#4edea3] text-xl">domain_add</span>
