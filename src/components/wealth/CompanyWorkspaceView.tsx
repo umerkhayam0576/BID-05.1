@@ -46,6 +46,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   const [isCompanyImportOpen, setIsCompanyImportOpen] = useState(false);
   const [legalSection, setLegalSection] = useState<'Ownership' | 'Agreements' | 'Legal Documents' | 'Approvals' | 'Signatures' | 'Audit History'>('Ownership');
   const [ownershipData, setOwnershipData] = useState<any>(null);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
   const [ownershipError, setOwnershipError] = useState<string | null>(null);
 
@@ -57,7 +58,20 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
       setOwnershipLoading(true);
       setOwnershipError(null);
       try {
-        const response = await fetch(`/api/ownership-legal/${company.id}/ownership`, { credentials: 'include' });
+        const entitiesResponse = await fetch('/api/entities', { credentials: 'include' });
+        const entitiesPayload = await entitiesResponse.json().catch(() => ({}));
+        if (!entitiesResponse.ok) throw new Error(entitiesPayload.error || 'Unable to load company workspace');
+        const entities = Array.isArray(entitiesPayload.entities) ? entitiesPayload.entities : [];
+        const normalizedCompanyName = company.name.trim().toLowerCase();
+        const entity = entities.find((item: any) =>
+          item.id === company.id ||
+          item.slug === company.id ||
+          String(item.name || '').trim().toLowerCase() === normalizedCompanyName
+        );
+        if (!entity?.id) throw new Error(`No database workspace is linked to ${company.name}`);
+        if (!cancelled) setWorkspaceId(entity.id);
+
+        const response = await fetch(`/api/ownership-legal/${entity.id}/ownership`, { credentials: 'include' });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Unable to load ownership data');
         if (!cancelled) setOwnershipData(payload);
