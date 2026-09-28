@@ -274,6 +274,46 @@ export const personalDebtPayments = pgTable('app_personal_debt_payments', {
   ...timestamps,
 })
 
+// A relationship is the source of truth for money owed between two people.
+// The borrower owes the lender. Each person sees the same relationship from their own side.
+export const personalMoneyRelationships = pgTable('app_personal_money_relationships', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  borrowerUserId: uuid('borrower_user_id').notNull(),
+  lenderUserId: uuid('lender_user_id').notNull(),
+  relationshipType: text('relationship_type').default('loan').notNull(),
+  description: text('description').notNull(),
+  originalAmount: numeric('original_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  remainingAmount: numeric('remaining_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  currency: text('currency').default('USD').notNull(),
+  interestRate: numeric('interest_rate', { precision: 7, scale: 4 }).default('0').notNull(),
+  status: text('status').default('active').notNull(),
+  startDate: date('start_date'),
+  dueDate: date('due_date'),
+  notes: text('notes'),
+  ...timestamps,
+})
+
+export const personalSettlements = pgTable('app_personal_settlements', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  payerUserId: uuid('payer_user_id').notNull(),
+  payeeUserId: uuid('payee_user_id').notNull(),
+  paymentDate: date('payment_date').notNull(),
+  totalAmount: numeric('total_amount', { precision: 14, scale: 2 }).notNull(),
+  currency: text('currency').default('USD').notNull(),
+  notes: text('notes'),
+  ...timestamps,
+})
+
+export const personalSettlementAllocations = pgTable('app_personal_settlement_allocations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  settlementId: uuid('settlement_id').notNull(),
+  relationshipId: uuid('relationship_id').notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  principalAmount: numeric('principal_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  interestAmount: numeric('interest_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  createdAt: timestamps.createdAt,
+})
+
 export const personalProperties = pgTable('app_personal_properties', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull(),
@@ -292,4 +332,4 @@ export const personalProperties = pgTable('app_personal_properties', {
   ...timestamps,
 })
 
-export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalProperties }
+export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, personalProperties }
