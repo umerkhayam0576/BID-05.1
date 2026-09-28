@@ -10,11 +10,23 @@ interface PersonalAsset {
   notes?: string | null;
 }
 
+interface PersonalProperty {
+  id: string;
+  name: string;
+  propertyType: string;
+  currentValue: string;
+  currency: string;
+  mortgageBalance: string;
+  rentalIncome: string;
+  status: string;
+}
+
 const assetTypes = ['cash-equivalent', 'vehicle', 'property', 'equipment', 'investment', 'collectible', 'other'];
 const emptyForm = { name: '', assetType: 'equipment', currentValue: '', currency: 'USD', notes: '' };
 
 export const PersonalAssetsView: React.FC = () => {
   const [assets, setAssets] = useState<PersonalAsset[]>([]);
+  const [properties, setProperties] = useState<PersonalProperty[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -25,9 +37,14 @@ export const PersonalAssetsView: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/personal-finance/assets', { credentials: 'include' });
-      if (!response.ok) throw new Error('Could not load personal assets');
-      setAssets(await response.json());
+      const [assetsResponse, propertiesResponse] = await Promise.all([
+        fetch('/api/personal-finance/assets', { credentials: 'include' }),
+        fetch('/api/personal-finance/properties', { credentials: 'include' }),
+      ]);
+      if (!assetsResponse.ok) throw new Error('Could not load personal assets');
+      if (!propertiesResponse.ok) throw new Error('Could not load personal properties');
+      setAssets(await assetsResponse.json());
+      setProperties(await propertiesResponse.json());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load personal assets');
     } finally {
@@ -38,8 +55,9 @@ export const PersonalAssetsView: React.FC = () => {
   useEffect(() => { loadAssets(); }, []);
 
   const total = useMemo(
-    () => assets.reduce((sum, asset) => sum + Number(asset.currentValue || 0), 0),
-    [assets]
+    () => assets.reduce((sum, asset) => sum + Number(asset.currentValue || 0), 0)
+      + properties.reduce((sum, property) => sum + Number(property.currentValue || 0), 0),
+    [assets, properties]
   );
 
   const saveAsset = async (event: React.FormEvent) => {
@@ -122,7 +140,7 @@ export const PersonalAssetsView: React.FC = () => {
         <div>
           <div className="font-mono text-xs text-[#4edea3] uppercase tracking-wider font-bold">Personal Wealth // Assets</div>
           <h1 className="mt-2 font-['Manrope'] text-2xl sm:text-3xl font-bold text-[#dae2fd]">Personal Assets</h1>
-          <p className="mt-1 text-sm text-[#bbcabf]">Real assets stored in your personal finance database and included in net worth.</p>
+          <p className="mt-1 text-sm text-[#bbcabf]">Real assets and properties stored in your personal finance database and included in net worth.</p>
         </div>
         <div className="bg-[#131b2e] border border-[#222a3d] rounded-xl px-5 py-4">
           <div className="font-mono text-[10px] uppercase tracking-wider text-[#bbcabf]">Live asset total</div>
@@ -185,7 +203,7 @@ export const PersonalAssetsView: React.FC = () => {
           <div className="px-5 py-4 border-b border-[#222a3d] flex items-center justify-between">
             <div>
               <h2 className="font-['Manrope'] font-bold text-lg text-[#dae2fd]">Your Assets</h2>
-              <p className="text-xs text-[#bbcabf] mt-1">{assets.length} active asset(s)</p>
+              <p className="text-xs text-[#bbcabf] mt-1">{assets.length + properties.length} active asset(s), including {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}</p>
             </div>
             <span className="font-mono text-[10px] text-[#4edea3] uppercase font-bold">LIVE</span>
           </div>
