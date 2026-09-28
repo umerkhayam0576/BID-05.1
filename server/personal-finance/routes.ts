@@ -166,7 +166,26 @@ router.delete('/assets/:id', async (req, res) => {
 })
 
 router.get('/liabilities', async (req, res) => {
-  res.json(await db.select().from(personalLiabilities).where(and(eq(personalLiabilities.userId, userId(req)), eq(personalLiabilities.status, 'active'))))
+  const currentUserId = userId(req)
+  const [liabilities, properties] = await Promise.all([
+    db.select().from(personalLiabilities).where(and(eq(personalLiabilities.userId, currentUserId), eq(personalLiabilities.status, 'active'))),
+    db.select().from(personalProperties).where(and(eq(personalProperties.userId, currentUserId), eq(personalProperties.status, 'active'))),
+  ])
+  const propertyMortgages = properties
+    .filter((property) => Number(property.mortgageBalance) > 0)
+    .map((property) => ({
+      id: 'property-mortgage:' + property.id,
+      userId: currentUserId,
+      name: property.name + ' Mortgage',
+      liabilityType: 'mortgage',
+      currentBalance: property.mortgageBalance,
+      currency: property.currency,
+      status: 'linked-property',
+      notes: 'Automatically linked to Real Estate & Property. Manage this mortgage from the property record.',
+      createdAt: property.createdAt,
+      updatedAt: property.updatedAt,
+    }))
+  res.json([...propertyMortgages, ...liabilities])
 })
 router.post('/liabilities', async (req, res) => {
   try {
