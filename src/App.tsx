@@ -93,7 +93,7 @@ import { CommandPaletteModal } from './components/CommandPaletteModal';
 
 type AuthUser = { id: string; email: string; displayName: string | null };
 
-function AuthenticatedApp() {
+function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   // Workspace state: personal finance is the default landing workspace for authenticated users.
   const [activeWorkspace, setActiveWorkspace] = useState<'personal-finance' | 'pre-con-estimating'>(() => {
     const saved = localStorage.getItem('bid_exact_active_workspace');
@@ -570,6 +570,7 @@ function AuthenticatedApp() {
   if (activeWorkspace === 'personal-finance') {
     return (
       <PersonalFinanceHub
+        onLogout={onLogout}
         activeWorkspace={activeWorkspace}
         onSwitchWorkspace={(ws) => {
           setActiveWorkspace(ws);
@@ -962,9 +963,17 @@ function AuthenticatedApp() {
 export default function App() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } finally {
+      setAuthUser(null);
+    }
+  };
+
   if (!authUser) {
     return <LoginScreen onAuthenticated={setAuthUser} />;
   }
 
-  return <AuthenticatedApp />;
+  return <AuthenticatedApp onLogout={handleLogout} />;
 }
