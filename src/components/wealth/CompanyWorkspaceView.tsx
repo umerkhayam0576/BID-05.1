@@ -23,7 +23,8 @@ type CompanyTabId =
   | 'distributions'
   | 'governance'
   | 'projects'
-  | 'documents';
+  | 'documents'
+  | 'ownership-legal';
 
 export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   company,
@@ -273,6 +274,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
             { id: 'governance', label: 'Governance & Resolutions', icon: 'gavel' },
             { id: 'projects', label: 'Commercial Pipeline & Contracts', icon: 'work' },
             { id: 'documents', label: 'Corporate Documents & Vault', icon: 'description' },
+            { id: 'ownership-legal', label: 'Ownership & Legal', icon: 'gavel' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -293,6 +295,21 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
 
       {/* 3. DEDICATED MAIN CONTENT SURFACE (ONLY THIS COMPANY) */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
+        {/* TAB: OWNERSHIP & LEGAL — foundation navigation */}
+        {activeTab === 'ownership-legal' && (
+          <div className="space-y-6">
+            <div className="bg-[#131b2e] rounded-lg border border-[#222a3d] p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="material-symbols-outlined text-[#4edea3]">gavel</span>
+                <h2 className="text-lg font-bold text-[#dae2fd]">Ownership & Legal</h2>
+              </div>
+              <p className="text-sm text-[#bbcabf]">
+                Ownership, agreements, legal documents, approvals, signatures, and audit history will be managed here.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* TAB 1: OVERVIEW & KPI MATRIX */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
