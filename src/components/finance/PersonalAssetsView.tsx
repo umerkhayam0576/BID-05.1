@@ -11,6 +11,7 @@ interface PersonalAsset {
 }
 
 const assetTypes = ['cash-equivalent', 'vehicle', 'property', 'equipment', 'investment', 'collectible', 'other'];
+const emptyForm = { name: '', assetType: 'equipment', currentValue: '', currency: 'USD', notes: '' };
 
 export const PersonalAssetsView: React.FC = () => {
   const [assets, setAssets] = useState<PersonalAsset[]>([]);
@@ -18,19 +19,13 @@ export const PersonalAssetsView: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState<PersonalAsset | null>(null);
-  const [form, setForm] = useState({
-    name: '',
-    assetType: 'equipment',
-    currentValue: '',
-    currency: 'USD',
-    notes: '',
-  });
+  const [form, setForm] = useState(emptyForm);
 
   const loadAssets = async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(editing ? '/api/personal-finance/assets/' + editing.id : '/api/personal-finance/assets', { credentials: 'include' });
+      const response = await fetch('/api/personal-finance/assets', { credentials: 'include' });
       if (!response.ok) throw new Error('Could not load personal assets');
       setAssets(await response.json());
     } catch (err) {
@@ -40,16 +35,14 @@ export const PersonalAssetsView: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    loadAssets();
-  }, []);
+  useEffect(() => { loadAssets(); }, []);
 
   const total = useMemo(
     () => assets.reduce((sum, asset) => sum + Number(asset.currentValue || 0), 0),
     [assets]
   );
 
-  const addAsset = async (event: React.FormEvent) => {
+  const saveAsset = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.name.trim() || !form.currentValue) {
       setError('Asset name and current value are required.');
@@ -59,7 +52,8 @@ export const PersonalAssetsView: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const response = await fetch('/api/personal-finance/assets', {
+      const url = editing ? '/api/personal-finance/assets/' + editing.id : '/api/personal-finance/assets';
+      const response = await fetch(url, {
         method: editing ? 'PUT' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -75,15 +69,12 @@ export const PersonalAssetsView: React.FC = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not save asset');
 
-      setAssets((current) => editing ? current.map((asset) => asset.id === data.id ? data : asset) : [data, ...current]);
+      setAssets((current) => editing
+        ? current.map((asset) => asset.id === data.id ? data : asset)
+        : [data, ...current]
+      );
       setEditing(null);
-      setForm({
-        name: '',
-        assetType: 'equipment',
-        currentValue: '',
-        currency: 'USD',
-        notes: '',
-      });
+      setForm(emptyForm);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save asset');
     } finally {
@@ -91,26 +82,47 @@ export const PersonalAssetsView: React.FC = () => {
     }
   };
 
+  const startEdit = (asset: PersonalAsset) => {
+    setEditing(asset);
+    setForm({
+      name: asset.name,
+      assetType: asset.assetType,
+      currentValue: asset.currentValue,
+      currency: asset.currency,
+      notes: asset.notes || '',
+    });
+    setError('');
+  };
+
   const removeAsset = async (asset: PersonalAsset) => {
     if (!window.confirm('Remove "' + asset.name + '"? It will be archived.')) return;
-    const response = await fetch('/api/personal-finance/assets/' + asset.id, { method: 'DELETE', credentials: 'include' });
-    if (!response.ok) { const data = await response.json(); setError(data.error || 'Could not remove asset'); return; }
-    setAssets((current) => current.filter((item) => item.id !== asset.id));
+
+    setError('');
+    try {
+      const response = await fetch('/api/personal-finance/assets/' + asset.id, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not remove asset');
+
+      setAssets((current) => current.filter((item) => item.id !== asset.id));
+      if (editing?.id === asset.id) {
+        setEditing(null);
+        setForm(emptyForm);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove asset');
+    }
   };
 
   return (
     <div className="w-full min-h-full px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       <section className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-          <div className="font-mono text-xs text-[#4edea3] uppercase tracking-wider font-bold">
-            Personal Wealth // Assets
-          </div>
-          <h1 className="mt-2 font-['Manrope'] text-2xl sm:text-3xl font-bold text-[#dae2fd]">
-            Personal Assets
-          </h1>
-          <p className="mt-1 text-sm text-[#bbcabf]">
-            Real assets stored in your personal finance database and included in net worth.
-          </p>
+          <div className="font-mono text-xs text-[#4edea3] uppercase tracking-wider font-bold">Personal Wealth // Assets</div>
+          <h1 className="mt-2 font-['Manrope'] text-2xl sm:text-3xl font-bold text-[#dae2fd]">Personal Assets</h1>
+          <p className="mt-1 text-sm text-[#bbcabf]">Real assets stored in your personal finance database and included in net worth.</p>
         </div>
         <div className="bg-[#131b2e] border border-[#222a3d] rounded-xl px-5 py-4">
           <div className="font-mono text-[10px] uppercase tracking-wider text-[#bbcabf]">Live asset total</div>
@@ -120,87 +132,53 @@ export const PersonalAssetsView: React.FC = () => {
         </div>
       </section>
 
-      {error && (
-        <div className="rounded-lg border border-[#ff7886]/40 bg-[#ff7886]/10 px-4 py-3 text-sm text-[#ffb2b7]">
-          {error}
-        </div>
-      )}
+      {error && <div className="rounded-lg border border-[#ff7886]/40 bg-[#ff7886]/10 px-4 py-3 text-sm text-[#ffb2b7]">{error}</div>}
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        <form onSubmit={addAsset} className="xl:col-span-1 bg-[#131b2e] border border-[#222a3d] rounded-xl p-5 space-y-4">
+        <form onSubmit={saveAsset} className="xl:col-span-1 bg-[#131b2e] border border-[#222a3d] rounded-xl p-5 space-y-4">
           <div>
             <h2 className="font-['Manrope'] font-bold text-lg text-[#dae2fd]">{editing ? 'Edit Asset' : 'Add Asset'}</h2>
-            <p className="text-xs text-[#bbcabf] mt-1">This saves directly to PostgreSQL.</p>
+            <p className="text-xs text-[#bbcabf] mt-1">Changes are saved directly to PostgreSQL.</p>
           </div>
 
           <label className="block space-y-1.5">
             <span className="text-xs font-mono text-[#bbcabf]">Asset name</span>
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="e.g. Personal Car"
-              className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]"
-            />
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Personal Car" className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]" />
           </label>
 
           <label className="block space-y-1.5">
             <span className="text-xs font-mono text-[#bbcabf]">Asset type</span>
-            <select
-              value={form.assetType}
-              onChange={(e) => setForm({ ...form, assetType: e.target.value })}
-              className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]"
-            >
-              {assetTypes.map((type) => (
-                <option key={type} value={type}>{type.replace('-', ' ')}</option>
-              ))}
+            <select value={form.assetType} onChange={(e) => setForm({ ...form, assetType: e.target.value })} className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]">
+              {assetTypes.map((type) => <option key={type} value={type}>{type.replace('-', ' ')}</option>)}
             </select>
           </label>
 
           <div className="grid grid-cols-2 gap-3">
             <label className="block space-y-1.5">
               <span className="text-xs font-mono text-[#bbcabf]">Current value</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.currentValue}
-                onChange={(e) => setForm({ ...form, currentValue: e.target.value })}
-                placeholder="0.00"
-                className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]"
-              />
+              <input type="number" min="0" step="0.01" value={form.currentValue} onChange={(e) => setForm({ ...form, currentValue: e.target.value })} placeholder="0.00" className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]" />
             </label>
-
             <label className="block space-y-1.5">
               <span className="text-xs font-mono text-[#bbcabf]">Currency</span>
-              <input
-                value={form.currency}
-                onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })}
-                maxLength={3}
-                className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]"
-              />
+              <input value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })} maxLength={3} className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]" />
             </label>
           </div>
 
           <label className="block space-y-1.5">
             <span className="text-xs font-mono text-[#bbcabf]">Notes</span>
-            <textarea
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              rows={3}
-              placeholder="Optional details"
-              className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3] resize-none"
-            />
+            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} placeholder="Optional details" className="w-full rounded-lg bg-[#060e20] border border-[#2d3449] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3] resize-none" />
           </label>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 px-4 py-2.5 text-sm font-bold text-[#003824] transition-colors"
-          >
-            <span className="material-symbols-outlined text-sm">add</span>
+          <button type="submit" disabled={saving} className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#10b981] hover:bg-[#059669] disabled:opacity-50 px-4 py-2.5 text-sm font-bold text-[#003824] transition-colors">
+            <span className="material-symbols-outlined text-sm">{editing ? 'save' : 'add'}</span>
             {saving ? 'Saving...' : editing ? 'Update Asset' : 'Add Personal Asset'}
           </button>
-          {editing && <button type="button" onClick={() => { setEditing(null); setForm({ name: '', assetType: 'equipment', currentValue: '', currency: 'USD', notes: '' }); }} className="w-full text-xs text-[#86948a]">Cancel edit</button>}
+
+          {editing && (
+            <button type="button" onClick={() => { setEditing(null); setForm(emptyForm); setError(''); }} className="w-full rounded-lg border border-[#2d3449] px-4 py-2 text-xs font-semibold text-[#bbcabf] hover:bg-[#1a2236]">
+              Cancel Edit
+            </button>
+          )}
         </form>
 
         <section className="xl:col-span-2 bg-[#131b2e] border border-[#222a3d] rounded-xl overflow-hidden">
@@ -215,22 +193,20 @@ export const PersonalAssetsView: React.FC = () => {
           {loading ? (
             <div className="p-6 text-sm text-[#bbcabf]">Loading assets...</div>
           ) : assets.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[#bbcabf]">
-              No personal assets have been added yet.
-            </div>
+            <div className="p-8 text-center text-sm text-[#bbcabf]">No personal assets have been added yet.</div>
           ) : (
             <div className="divide-y divide-[#222a3d]">
               {assets.map((asset) => (
                 <div key={asset.id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <div className="font-['Manrope'] font-semibold text-[#dae2fd]">{asset.name}</div>
-                    <div className="mt-1 text-xs text-[#bbcabf] capitalize">
-                      {asset.assetType.replace('-', ' ')} • {asset.currency} • {asset.status}
-                    </div>
+                    <div className="mt-1 text-xs text-[#bbcabf] capitalize">{asset.assetType.replace('-', ' ')} • {asset.currency} • {asset.status}</div>
                     {asset.notes && <div className="mt-1 text-xs text-[#91a0c5]">{asset.notes}</div>}
                   </div>
-                  <div className="font-mono text-lg font-bold text-[#4edea3]">
-                    {asset.currency} {Number(asset.currentValue).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <div className="flex items-center gap-4">
+                    <div className="font-mono text-lg font-bold text-[#4edea3]">{asset.currency} {Number(asset.currentValue).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                    <button type="button" onClick={() => startEdit(asset)} className="rounded-lg border border-[#2d3449] px-3 py-2 text-xs font-semibold text-[#dae2fd] hover:bg-[#1a2236]">Edit</button>
+                    <button type="button" onClick={() => removeAsset(asset)} className="rounded-lg border border-[#ff7886]/40 px-3 py-2 text-xs font-semibold text-[#ffb2b7] hover:bg-[#ff7886]/10">Remove</button>
                   </div>
                 </div>
               ))}
