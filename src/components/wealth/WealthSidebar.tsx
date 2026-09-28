@@ -251,6 +251,25 @@ export const WealthSidebar: React.FC<WealthSidebarProps> = ({
                 type="button"
                 onClick={() => {
                   handleSelectEntity(null);
+                  handleSelectTab('personal-assets');
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded transition-colors text-left text-sm ${
+                  activeEntityId === null && activeTab === 'personal-assets'
+                    ? 'bg-[#10b981] text-[#003824] font-semibold'
+                    : 'text-[#bbcabf] hover:bg-[#171f33] hover:text-[#dae2fd]'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="material-symbols-outlined text-sm">account_balance</span>
+                  <span className="truncate">Personal Assets</span>
+                </div>
+                <span className="font-mono text-[10px] text-[#4edea3]">LIVE</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleSelectEntity(null);
                   handleSelectTab('personal-liabilities-and-debt');
                 }}
                 className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded transition-colors text-left text-sm ${
