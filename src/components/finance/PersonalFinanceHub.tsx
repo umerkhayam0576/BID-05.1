@@ -92,6 +92,84 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
     localStorage.setItem('bid_exact_wealth_companies', JSON.stringify(companies));
   }, [companies]);
 
+  // Tenant source of truth: company workspaces come from the SaaS API.
+  // Keep existing local company data only as presentation/finance metadata; never use
+  // the legacy UI id as the tenant identity for secured backend requests.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWorkspaceCompanies = async () => {
+      try {
+        const response = await fetch('/api/entities', { credentials: 'include' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !Array.isArray(payload.entities)) {
+          throw new Error(payload.error || 'Unable to load company workspaces');
+        }
+
+        const serverEntities = payload.entities as Array<{
+          id: string;
+          name: string;
+          legalStructure?: string;
+          industryType?: string;
+          ownershipPercent?: string | number;
+          profitSharePercent?: string | number;
+          membershipRole?: string;
+        }>;
+
+        if (cancelled) return;
+
+        setCompanies((currentCompanies) =>
+          serverEntities.map((entity, index) => {
+            const existing = currentCompanies.find(
+              (company) =>
+                company.workspaceId === entity.id ||
+                company.name.trim().toLowerCase() === entity.name.trim().toLowerCase()
+            );
+
+            const ownershipPercent = Number(entity.ownershipPercent ?? existing?.legalOwnershipPercent ?? 0);
+            const profitSharePercent = Number(entity.profitSharePercent ?? existing?.profitSharePercent ?? 0);
+            const valuation = existing?.enterpriseValuation ?? 0;
+            const netProfit = existing?.companyNetProfit ?? 0;
+
+            return {
+              ...(existing || INITIAL_COMPANIES[0]),
+              id: existing?.id || 'workspace-' + entity.id,
+              workspaceId: entity.id,
+              name: entity.name,
+              industry: entity.industryType || existing?.industry || 'Services',
+              role: entity.membershipRole || existing?.role || 'Member',
+              legalOwnershipPercent: ownershipPercent,
+              profitSharePercent,
+              enterpriseValuation: valuation,
+              companyNetProfit: netProfit,
+              equityPositionValue: (valuation * ownershipPercent) / 100,
+              attributedProfit: (netProfit * profitSharePercent) / 100,
+              statusBadge: existing?.statusBadge || 'ACTIVE',
+              roleBadge: existing?.roleBadge || (entity.membershipRole || 'MEMBER').toUpperCase(),
+              ownershipType: existing?.ownershipType || entity.legalStructure || 'Other',
+              profitTierDescription: existing?.profitTierDescription || 'Workspace profit share',
+              distributionsReceived: existing?.distributionsReceived ?? 0,
+              distributionsPending: existing?.distributionsPending ?? 0,
+              contributedCapital: existing?.contributedCapital ?? 0,
+              icon: existing?.icon || 'building',
+              color: existing?.color || (index % 2 === 0 ? 'primary' : 'secondary'),
+              capTable: existing?.capTable || [],
+            } as CompanyEntity;
+          })
+        );
+      } catch (error) {
+        // Keep the last local snapshot visible if the workspace API is temporarily unavailable.
+        // Ownership & Legal will still refuse tenant-scoped requests without workspaceId.
+        console.error('Unable to load SaaS company workspaces', error);
+      }
+    };
+
+    loadWorkspaceCompanies();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('bid_exact_wealth_metrics', JSON.stringify(metrics));
   }, [metrics]);
