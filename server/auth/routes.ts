@@ -64,7 +64,7 @@ authRoutes.post('/register', async (req, res) => {
   }
 })
 
-authRoutes.post('/login', async (req, res) =>
+authRoutes.post('/login', async (req, res) => {
   try {
     const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
     const password = typeof req.body?.password === 'string' ? req.body.password : ''
