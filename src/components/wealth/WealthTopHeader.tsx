@@ -116,12 +116,6 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
           )}
         </div>
 
-        {onLogout && (
-          <button type="button" onClick={onLogout} className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded text-[#ffb2b7] hover:text-white hover:bg-[#131b2e] border border-[#ff7886]/30 text-xs font-mono font-semibold transition-colors" title="Log out">
-            <span className="material-symbols-outlined text-base">logout</span>
-            <span className="hidden sm:inline">Log out</span>
-          </button>
-        )}
 
         {/* User Profile menu */}
         <div className="relative" ref={profileMenuRef}>
