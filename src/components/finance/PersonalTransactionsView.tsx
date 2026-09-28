@@ -66,7 +66,7 @@ export const PersonalTransactionsView: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const response = await fetch(editing ? '/api/personal-finance/transactions/' + editing.id : '/api/personal-finance/transactions',
+      const response = await fetch(editing ? '/api/personal-finance/transactions/' + editing.id : '/api/personal-finance/transactions', {
         method: editing ? 'PUT' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
