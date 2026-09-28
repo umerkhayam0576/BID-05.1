@@ -16,6 +16,22 @@ export const users = pgTable('app_users', {
   emailUnique: unique('app_users_email_unique').on(table.email),
 }))
 
+export const userProfiles = pgTable('app_user_profiles', {
+  userId: uuid('user_id').primaryKey(),
+  phone: text('phone'),
+  jobTitle: text('job_title'),
+  bio: text('bio'),
+  avatarUrl: text('avatar_url'),
+  country: text('country'),
+  timezone: text('timezone').default('UTC').notNull(),
+  language: text('language').default('en').notNull(),
+  preferredCurrency: text('preferred_currency').default('USD').notNull(),
+  dateFormat: text('date_format').default('YYYY-MM-DD').notNull(),
+  emailNotifications: boolean('email_notifications').default(true).notNull(),
+  inAppNotifications: boolean('in_app_notifications').default(true).notNull(),
+  ...timestamps,
+})
+
 export const userCredentials = pgTable('app_user_credentials', {
   userId: uuid('user_id').primaryKey(),
   passwordHash: text('password_hash').notNull(),
