@@ -13,6 +13,7 @@ interface CompanyWorkspaceViewProps {
   onTogglePrivacy?: () => void;
   onSwitchWorkspace?: (ws: 'personal-finance' | 'pre-con-estimating') => void;
   onUpdateCompany?: (updated: CompanyEntity) => void;
+  onLogout?: () => void;
 }
 
 type CompanyTabId =
@@ -35,6 +36,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   onTogglePrivacy,
   onSwitchWorkspace,
   onUpdateCompany,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<CompanyTabId>('overview');
   const [isSwitchMenuOpen, setIsSwitchMenuOpen] = useState(false);
