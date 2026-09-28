@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { ProfileSettingsModal } from '../finance/ProfileSettingsModal';
 interface WealthTopHeaderProps {
   onOpenAddCompany: () => void;
   onOpenRecordCapital: () => void;
@@ -18,6 +19,9 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
   onLogout,
 }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState('Loading...');
+  const [profileTitle, setProfileTitle] = useState('Personal Principal & Managing Partner');
   const notificationRef = useRef<HTMLDivElement>(null);
 
   // Close menus on outside click
@@ -30,6 +34,17 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    fetch('/api/auth/profile', { credentials: 'include' })
+      .then(async (res) => {
+        if (!res.ok) return
+        const data = await res.json()
+        setProfileName(data.user?.displayName || 'User')
+        if (data.profile?.jobTitle) setProfileTitle(data.profile.jobTitle)
+      })
+      .catch(() => setProfileName('User'))
+  }, [])
 
   return (
     <header className="fixed top-0 left-0 lg:left-72 right-0 h-12 bg-[#0b1326]/90 backdrop-blur-xl border-b border-[#222a3d] z-40 px-3 sm:px-5 flex items-center justify-end gap-2 sm:gap-3 shadow-sm">
