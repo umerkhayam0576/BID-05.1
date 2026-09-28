@@ -8,11 +8,12 @@ const router = Router()
 
 router.get('/summary', async (req, res) => {
   const currentUserId = userId(req)
-  const [accounts, transactions, assets, liabilities] = await Promise.all([
+  const [accounts, transactions, assets, liabilities, properties] = await Promise.all([
     db.select().from(personalAccounts).where(and(eq(personalAccounts.userId, currentUserId), eq(personalAccounts.status, 'active'))),
     db.select().from(personalTransactions).where(eq(personalTransactions.userId, currentUserId)),
     db.select().from(personalAssets).where(and(eq(personalAssets.userId, currentUserId), eq(personalAssets.status, 'active'))),
     db.select().from(personalLiabilities).where(and(eq(personalLiabilities.userId, currentUserId), eq(personalLiabilities.status, 'active'))),
+    db.select().from(personalProperties).where(and(eq(personalProperties.userId, currentUserId), eq(personalProperties.status, 'active'))),
   ])
   let openingBalance = 0
   for (const account of accounts) openingBalance += Number(account.openingBalance)
@@ -25,13 +26,15 @@ router.get('/summary', async (req, res) => {
   const cashBalance = openingBalance + income - expenses
   let assetTotal = 0
   for (const asset of assets) assetTotal += Number(asset.currentValue)
+  for (const property of properties) assetTotal += Number(property.currentValue)
   let liabilityTotal = 0
   for (const liability of liabilities) liabilityTotal += Number(liability.currentBalance)
+  for (const property of properties) liabilityTotal += Number(property.mortgageBalance)
   res.json({
     cashBalance: cashBalance.toFixed(2), income: income.toFixed(2), expenses: expenses.toFixed(2),
     assetTotal: assetTotal.toFixed(2), liabilityTotal: liabilityTotal.toFixed(2),
     netWorth: (cashBalance + assetTotal - liabilityTotal).toFixed(2),
-    accountCount: accounts.length, assetCount: assets.length, liabilityCount: liabilities.length,
+    accountCount: accounts.length, assetCount: assets.length + properties.length, liabilityCount: liabilities.length + properties.filter((property) => Number(property.mortgageBalance) > 0).length, propertyCount: properties.length,
   })
 })
 
