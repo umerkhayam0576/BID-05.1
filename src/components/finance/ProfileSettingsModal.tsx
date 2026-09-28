@@ -105,8 +105,7 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
   }
 
   const handlePhoneChange = (value: string) => {
-    const stripped = value.replace(/^\+?\d{1,4}\s*/, '')
-    update('phone', stripped)
+    update('phone', value.replace(/[^0-9\s()-]/g, ''))
   }
 
   const saveProfile = async () => {
@@ -140,7 +139,11 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Unable to save profile')
-      setUser(data.user); setProfile(data.profile); setForm({ ...defaultProfile, ...data.profile })
+      const savedCountry = countries.find((item) => item.name === data.profile?.country)
+      const savedCode = savedCountry?.code || ''
+      const savedPhone = String(data.profile?.phone || '')
+      const savedNumber = savedCode && savedPhone.startsWith(savedCode) ? savedPhone.slice(savedCode.length).trim() : savedPhone.replace(/^\+\d{1,4}\s*/, '')
+      setUser(data.user); setProfile(data.profile); setPhoneCountryCode(savedCode); setForm({ ...defaultProfile, ...data.profile, phone: savedNumber })
       setPhotoFile(null)
       setPhotoPreview(data.profile?.avatarUrl || '')
       setMessage('Profile settings saved.')
@@ -210,7 +213,7 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
                   <label className={label}>Phone</label>
                   <div className="flex gap-2">
                     <input className={input + ' w-24 shrink-0 opacity-60'} value={phoneCountryCode || '—'} disabled aria-label="Phone country code" />
-                    <input className={input} value={form.phone || ''} onChange={(e) => handlePhoneChange(e.target.value)} placeholder="300 1234567" />
+                    <input className={input + " select-text"} value={form.phone || ''} onChange={(e) => handlePhoneChange(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="300 1234567" />
                   </div>
                   <p className="text-[10px] text-[#86948a] mt-1">Country sets the country code automatically. Enter only your phone number.</p>
                 </div>
