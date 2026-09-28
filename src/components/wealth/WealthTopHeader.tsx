@@ -12,11 +12,13 @@ interface WealthTopHeaderProps {
   onSwitchWorkspace?: (ws: 'personal-finance' | 'pre-con-estimating') => void;
   onToggleMobileMenu?: () => void;
   onLogout?: () => void;
+  onOpenStudio?: () => void;
 }
 
 export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
   onOpenSearch,
   onLogout,
+  onOpenStudio,
 }) => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -56,6 +58,20 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
   return (
     <header className="fixed top-0 left-0 lg:left-72 right-0 h-12 bg-[#0b1326]/90 backdrop-blur-xl border-b border-[#222a3d] z-40 px-3 sm:px-5 flex items-center justify-end gap-2 sm:gap-3 shadow-sm">
       <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        {onOpenStudio && (
+          <button
+            type="button"
+            onClick={onOpenStudio}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#4edea3]/10 hover:bg-[#4edea3]/20 border border-[#4edea3]/40 text-[#4edea3] text-xs font-mono font-bold transition-colors"
+            aria-label="Open SaaS Studio"
+            title="Open SaaS Studio administration"
+          >
+            <span className="material-symbols-outlined text-sm">settings</span>
+            <span>Studio</span>
+            <span className="hidden sm:inline text-[9px] px-1 py-0.5 rounded bg-[#4edea3]/15">ADMIN</span>
+          </button>
+        )}
+
         {/* Mobile Search Button */}
         <button
           type="button"
