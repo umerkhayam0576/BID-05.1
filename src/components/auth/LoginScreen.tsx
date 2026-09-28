@@ -11,6 +11,8 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthU
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(true);
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [displayName, setDisplayName] = useState('');
 
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
@@ -28,11 +30,11 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthU
     setError('');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(mode === 'login' ? '/api/auth/login' : '/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(mode === 'login' ? { email, password } : { displayName, email, password }),
       });
       const data = await response.json();
 
@@ -55,8 +57,15 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthU
     <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] flex items-center justify-center p-6">
       <form onSubmit={submit} className="w-full max-w-md rounded-xl border border-[#2d3449] bg-[#131b2e] p-6">
         <div className="text-[10px] font-mono tracking-[0.2em] text-[#4edea3]">BID EXACT ERP</div>
-        <h1 className="mt-2 text-2xl font-bold text-white">Sign in</h1>
-        <p className="mt-1 mb-6 text-sm text-[#86948a]">Access your personal account and registered entities.</p>
+        <h1 className="mt-2 text-2xl font-bold text-white">{mode === 'login' ? 'Sign in' : 'Create your account'}</h1>
+        <p className="mt-1 mb-6 text-sm text-[#86948a]">{mode === 'login' ? 'Access your personal account and registered entities.' : 'Create your personal account to manage your finances and join registered entities.'}</p>
+
+        {mode === 'signup' && (
+          <label className="block mb-4">
+            <span className="mb-1 block text-xs font-mono text-[#86948a]">FULL NAME</span>
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" autoComplete="name" required className="w-full rounded-md border border-[#2d3449] bg-[#0b1326] px-3 py-2.5 text-white" />
+          </label>
+        )}
 
         <label className="block mb-4">
           <span className="mb-1 block text-xs font-mono text-[#86948a]">EMAIL</span>
@@ -70,7 +79,10 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthU
 
         {error && <div className="mb-4 rounded-md border border-[#ff7886]/30 bg-[#ff7886]/10 px-3 py-2 text-xs text-[#ff9aa5]">{error}</div>}
 
-        <button type="submit" className="w-full rounded-md bg-[#4edea3] px-4 py-2.5 font-semibold text-[#003824]">Sign in</button>
+        <button type="submit" className="w-full rounded-md bg-[#4edea3] px-4 py-2.5 font-semibold text-[#003824]">{mode === 'login' ? 'Sign in' : 'Create account'}</button>
+        <button type="button" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }} className="mt-3 w-full rounded-md border border-[#2d3449] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a2338]">
+          {mode === 'login' ? 'Sign up' : 'Back to sign in'}
+        </button>
       </form>
     </div>
   );
