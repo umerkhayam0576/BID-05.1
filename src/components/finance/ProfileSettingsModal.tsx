@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 type Profile = {
   phone: string | null
@@ -96,8 +97,8 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
   const input = 'w-full h-10 px-3 rounded-md bg-[#0b1326] border border-[#2d3449] text-[#dae2fd] text-sm outline-none focus:border-[#4edea3]/70'
   const label = 'block text-[10px] font-mono uppercase tracking-wider text-[#86948a] mb-1.5'
 
-  return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Profile settings">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Profile settings">
       <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-[#131b2e] border border-[#2d3449] rounded-xl shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#222a3d]">
           <div>
@@ -162,6 +163,7 @@ export const ProfileSettingsModal: React.FC<{ isOpen: boolean; onClose: () => vo
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
