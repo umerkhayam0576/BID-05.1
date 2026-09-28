@@ -12,6 +12,7 @@ interface CompanyWorkspaceViewProps {
   privacyMode: boolean;
   onTogglePrivacy?: () => void;
   onSwitchWorkspace?: (ws: 'personal-finance' | 'pre-con-estimating') => void;
+  onOpenStudio?: () => void;
   onUpdateCompany?: (updated: CompanyEntity) => void;
   onLogout?: () => void;
 }
@@ -36,6 +37,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   privacyMode,
   onTogglePrivacy,
   onSwitchWorkspace,
+  onOpenStudio,
   onUpdateCompany,
   onLogout,
 }) => {
@@ -202,6 +204,21 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
 
           {/* Right: Actions, Switcher, and Privacy Controls */}
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Company-scoped Studio */}
+            {onOpenStudio && (
+              <button
+                type="button"
+                onClick={onOpenStudio}
+                className="px-3 py-2 bg-[#4edea3]/10 hover:bg-[#4edea3]/15 border border-[#4edea3]/30 text-[#4edea3] rounded text-xs font-mono font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                title={"Open Studio for " + company.name}
+                aria-label={"Open Studio for " + company.name}
+              >
+                <span className="material-symbols-outlined text-sm">settings</span>
+                <span>Studio</span>
+                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[#4edea3]/15 font-bold">ADMIN</span>
+              </button>
+            )}
+
             {/* Quick Switch Company Dropdown */}
             <div className="relative">
               <button
