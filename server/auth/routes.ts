@@ -160,7 +160,7 @@ authRoutes.post('/profile/photo', async (req, res) => {
     if (!session) return res.status(401).json({ error: 'Authentication required' })
 
     const photo = typeof req.body?.photo === 'string' ? req.body.photo : ''
-    const match = photo.match(/^data:(image\\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/)
+    const match = photo.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/)
     if (!match) return res.status(400).json({ error: 'Please upload a JPG, PNG, or WebP image.' })
 
     const mime = match[1]
