@@ -13,6 +13,8 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthU
   const [checking, setChecking] = useState(true);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [displayName, setDisplayName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState('');
 
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
@@ -34,7 +36,7 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthU
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(mode === 'login' ? { email, password } : { displayName, email, password }),
+        body: JSON.stringify(mode === 'login' ? { email, password } : { displayName, email, password, phone, country }),
       });
       const data = await response.json();
 
@@ -61,10 +63,34 @@ export function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthU
         <p className="mt-1 mb-6 text-sm text-[#86948a]">{mode === 'login' ? 'Access your personal account and registered entities.' : 'Create your personal account to manage your finances and join registered entities.'}</p>
 
         {mode === 'signup' && (
-          <label className="block mb-4">
-            <span className="mb-1 block text-xs font-mono text-[#86948a]">FULL NAME</span>
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" autoComplete="name" required className="w-full rounded-md border border-[#2d3449] bg-[#0b1326] px-3 py-2.5 text-white" />
-          </label>
+          <>
+            <label className="block mb-4">
+              <span className="mb-1 block text-xs font-mono text-[#86948a]">FULL NAME</span>
+              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" autoComplete="name" required className="w-full rounded-md border border-[#2d3449] bg-[#0b1326] px-3 py-2.5 text-white" />
+            </label>
+            <label className="block mb-4">
+              <span className="mb-1 block text-xs font-mono text-[#86948a]">COUNTRY</span>
+              <select value={country} onChange={(event) => setCountry(event.target.value)} required className="w-full rounded-md border border-[#2d3449] bg-[#0b1326] px-3 py-2.5 text-white">
+                <option value="">Select country</option>
+                <option value="Pakistan">Pakistan (+92)</option>
+                <option value="United States">United States (+1)</option>
+                <option value="Canada">Canada (+1)</option>
+                <option value="United Kingdom">United Kingdom (+44)</option>
+                <option value="United Arab Emirates">United Arab Emirates (+971)</option>
+                <option value="Saudi Arabia">Saudi Arabia (+966)</option>
+                <option value="Qatar">Qatar (+974)</option>
+                <option value="Kuwait">Kuwait (+965)</option>
+                <option value="Australia">Australia (+61)</option>
+                <option value="India">India (+91)</option>
+                <option value="Germany">Germany (+49)</option>
+                <option value="France">France (+33)</option>
+              </select>
+            </label>
+            <label className="block mb-4">
+              <span className="mb-1 block text-xs font-mono text-[#86948a]">PHONE NUMBER</span>
+              <input value={phone} onChange={(event) => setPhone(event.target.value)} type="tel" autoComplete="tel" inputMode="tel" required placeholder="300 1234567" className="w-full rounded-md border border-[#2d3449] bg-[#0b1326] px-3 py-2.5 text-white select-text" />
+            </label>
+          </>
         )}
 
         <label className="block mb-4">
