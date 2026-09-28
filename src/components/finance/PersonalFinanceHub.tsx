@@ -32,6 +32,7 @@ import { GlobalSearchModal } from '../wealth/GlobalSearchModal';
 import { FinanceWorkflowView } from './FinanceWorkflowView';
 import { PersonalAccountsView } from './PersonalAccountsView';
 import { PersonalTransactionsView } from './PersonalTransactionsView';
+import { PersonalAssetsView } from './PersonalAssetsView';
 
 interface PersonalFinanceHubProps {
   onSwitchWorkspace: (ws: 'personal-finance' | 'pre-con-estimating') => void;
@@ -389,6 +390,8 @@ export const PersonalFinanceHub: React.FC<PersonalFinanceHubProps> = ({
             />
           ) : activeTab === 'bank-and-liquid-cash' ? (
             <PersonalAccountsView />
+          ) : activeTab === 'personal-assets' ? (
+            <PersonalAssetsView />
           ) : activeTab === 'personal-cash-flow' ? (
             <PersonalTransactionsView />
           ) : (
