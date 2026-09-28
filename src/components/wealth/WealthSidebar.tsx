@@ -73,26 +73,28 @@ export const WealthSidebar: React.FC<WealthSidebarProps> = ({
 
         {/* Navigation Sections */}
         <div className="overflow-y-auto flex-1 py-3 px-2 space-y-3">
-          {/* Platform Administration */}
-          <div className="space-y-0.5">
-            <div className="px-2 py-1 font-mono text-[10px] font-bold text-[#bbcabf] uppercase tracking-wider">
-              Platform
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                onOpenStudio();
-                onCloseMobile?.();
-              }}
-              className="w-full flex items-center justify-between px-2.5 py-2 rounded border border-[#4edea3]/30 bg-[#4edea3]/10 text-[#4edea3] hover:bg-[#4edea3]/15 transition-colors text-left"
-            >
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-sm">settings</span>
-                <span className="font-semibold">Studio</span>
+          {/* Platform Administration — company-scoped only */}
+          {activeEntityId !== null && (
+            <div className="space-y-0.5">
+              <div className="px-2 py-1 font-mono text-[10px] font-bold text-[#bbcabf] uppercase tracking-wider">
+                Company Platform
               </div>
-              <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[#4edea3]/15 font-bold">ADMIN</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenStudio();
+                  onCloseMobile?.();
+                }}
+                className="w-full flex items-center justify-between px-2.5 py-2 rounded border border-[#4edea3]/30 bg-[#4edea3]/10 text-[#4edea3] hover:bg-[#4edea3]/15 transition-colors text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">settings</span>
+                  <span className="font-semibold">Studio</span>
+                </div>
+                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[#4edea3]/15 font-bold">ADMIN</span>
+              </button>
+            </div>
+          )}
 
           {/* Section 1: Consolidated Hub */}
           <div className="space-y-0.5">
