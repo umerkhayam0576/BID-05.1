@@ -227,26 +227,34 @@ router.get('/liabilities', async (req, res) => {
     db.select().from(personalLiabilities).where(and(eq(personalLiabilities.userId, currentUserId), eq(personalLiabilities.status, 'active'))),
     db.select().from(personalProperties).where(and(eq(personalProperties.userId, currentUserId), eq(personalProperties.status, 'active'))),
   ])
-  const propertyMortgages = properties
-    .filter((property: typeof personalProperties.$inferSelect) => Number(property.mortgageBalance) > 0)
-    .map((property: typeof personalProperties.$inferSelect) => ({
-      id: 'property-mortgage:' + property.id,
-      userId: currentUserId,
-      name: property.name + ' Mortgage',
-      liabilityType: 'mortgage',
-      currentBalance: property.mortgageBalance,
-      currency: property.currency,
-      status: 'linked-property',
-      notes: 'Automatically linked to Real Estate & Property. Manage this mortgage from the property record.',
-      originalBalance: property.mortgageBalance,
-      interestRate: '0',
-      paymentAmount: property.monthlyPayment,
-      paymentFrequency: 'monthly',
-      nextPaymentDate: null,
-      startDate: property.purchaseDate,
-      createdAt: property.createdAt,
-      updatedAt: property.updatedAt,
-    }))
+  const propertyMortgages = (await Promise.all(properties
+    .filter((property: typeof personalProperties.$inferSelect) => Number(property.mortgageBalance) > 0 || Number(property.monthlyPayment) > 0)
+    .map(async (property: typeof personalProperties.$inferSelect) => {
+      const liabilityId = 'property-mortgage:' + property.id
+      const payments = await db.select({ principalAmount: personalDebtPayments.principalAmount })
+        .from(personalDebtPayments)
+        .where(and(eq(personalDebtPayments.userId, currentUserId), eq(personalDebtPayments.liabilityId, liabilityId)))
+      const originalBalance = Number(property.mortgageBalance) + payments.reduce((sum, payment) => sum + Number(payment.principalAmount), 0)
+      return {
+        id: liabilityId,
+        userId: currentUserId,
+        name: property.name + ' Mortgage',
+        liabilityType: 'mortgage',
+        currentBalance: property.mortgageBalance,
+        currency: property.currency,
+        status: 'linked-property',
+        notes: 'Automatically linked to Real Estate & Property. Manage this mortgage from the property record.',
+        originalBalance: originalBalance.toFixed(2),
+        interestRate: '0',
+        paymentAmount: property.monthlyPayment,
+        paymentFrequency: 'monthly',
+        nextPaymentDate: null,
+        startDate: property.purchaseDate,
+        createdAt: property.createdAt,
+        updatedAt: property.updatedAt,
+      }
+    })
+  ))
   res.json([...propertyMortgages, ...liabilities])
 })
 router.get('/liabilities/:id/payments', async (req, res) => {
