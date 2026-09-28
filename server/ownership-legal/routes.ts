@@ -14,6 +14,7 @@ import {
   ownershipHistory,
   entityOwnerships,
   users,
+  workspaces,
 } from '../db/app-schema'
 
 export const ownershipLegalRoutes = Router()
@@ -29,9 +30,16 @@ function validPercent(value: unknown) {
   return Number.isFinite(n) && n >= 0 && n <= 100
 }
 
+async function resolveWorkspaceId(workspaceRef: string) {
+  const [workspace] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.slug, workspaceRef)).limit(1)
+  if (workspace) return workspace.id
+  return workspaceRef
+}
+
 ownershipLegalRoutes.get('/:workspaceId/ownership', async (req, res) => {
   try {
-    await requireWorkspaceRole(req, req.params.workspaceId, [...ownerRoles])
+    const workspaceId = await resolveWorkspaceId(req.params.workspaceId)
+    await requireWorkspaceRole(req, workspaceId, [...ownerRoles])
 
     const [owners, history, requests] = await Promise.all([
       db.select({
@@ -45,12 +53,12 @@ ownershipLegalRoutes.get('/:workspaceId/ownership', async (req, res) => {
       })
         .from(entityOwnerships)
         .innerJoin(users, eq(users.id, entityOwnerships.userId))
-        .where(and(eq(entityOwnerships.workspaceId, req.params.workspaceId), eq(entityOwnerships.status, 'active'))),
+        .where(and(eq(entityOwnerships.workspaceId, workspaceId), eq(entityOwnerships.status, 'active'))),
       db.select().from(ownershipHistory)
-        .where(eq(ownershipHistory.workspaceId, req.params.workspaceId))
+        .where(eq(ownershipHistory.workspaceId, workspaceId))
         .orderBy(asc(ownershipHistory.effectiveFrom)),
       db.select().from(ownershipChangeRequests)
-        .where(eq(ownershipChangeRequests.workspaceId, req.params.workspaceId))
+        .where(eq(ownershipChangeRequests.workspaceId, workspaceId))
         .orderBy(asc(ownershipChangeRequests.createdAt)),
     ])
 
