@@ -35,7 +35,7 @@ router.get('/summary', async (req, res) => {
     cashBalance: cashBalance.toFixed(2), income: income.toFixed(2), expenses: expenses.toFixed(2),
     assetTotal: assetTotal.toFixed(2), liabilityTotal: liabilityTotal.toFixed(2),
     netWorth: (cashBalance + assetTotal - liabilityTotal).toFixed(2),
-    accountCount: accounts.length, assetCount: assets.length + properties.length, liabilityCount: liabilities.length + properties.filter((property) => Number(property.mortgageBalance) > 0).length, propertyCount: properties.length,
+    accountCount: accounts.length, assetCount: assets.length + properties.length, liabilityCount: liabilities.length + properties .filter((property: typeof personalProperties.$inferSelect) => Number(property.mortgageBalance) > 0).length, propertyCount: properties.length,
   })
 })
 
@@ -49,6 +49,14 @@ function amount(value: unknown, field: string) {
   const numberValue = Number(value)
   if (!Number.isFinite(numberValue) || numberValue < 0) throw new Error(field + ' must be a valid non-negative amount')
   return numberValue.toFixed(2)
+}
+
+async function syncAllPropertyRentalIncome(currentUserId: string) {
+  const properties = await db.select().from(personalProperties).where(and(
+    eq(personalProperties.userId, currentUserId),
+    eq(personalProperties.status, 'active'),
+  ))
+  for (const property of properties) await syncPropertyRentalIncome(property)
 }
 
 async function syncPropertyRentalIncome(property: typeof personalProperties.$inferSelect) {
@@ -221,7 +229,7 @@ router.get('/liabilities', async (req, res) => {
   ])
   const propertyMortgages = properties
     .filter((property) => Number(property.mortgageBalance) > 0)
-    .map((property) => ({
+    .map((property: typeof personalProperties.$inferSelect) => ({
       id: 'property-mortgage:' + property.id,
       userId: currentUserId,
       name: property.name + ' Mortgage',
