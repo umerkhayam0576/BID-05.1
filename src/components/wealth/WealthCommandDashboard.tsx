@@ -347,6 +347,29 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
         </div>
       </section>
 
+      {/* Live Personal Balance Summary */}
+      {personalSummary && (
+        <section className="px-4 sm:px-6 py-4 sm:py-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-4">
+              <div className="font-mono text-[10px] text-[#bbcabf] uppercase font-bold">Personal Assets</div>
+              <div className="mt-2 font-mono text-2xl text-[#dae2fd] font-bold">{mask(Number(personalSummary.assetTotal))}</div>
+              <div className="mt-1 text-xs text-[#bbcabf]">{personalSummary.assetCount} active asset{personalSummary.assetCount === 1 ? '' : 's'}</div>
+            </div>
+            <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-4">
+              <div className="font-mono text-[10px] text-[#bbcabf] uppercase font-bold">Personal Liabilities</div>
+              <div className="mt-2 font-mono text-2xl text-[#ffb2b7] font-bold">{mask(Number(personalSummary.liabilityTotal))}</div>
+              <div className="mt-1 text-xs text-[#bbcabf]">{personalSummary.liabilityCount} active liabilit{personalSummary.liabilityCount === 1 ? 'y' : 'ies'}</div>
+            </div>
+            <div className="bg-[#171f33] border border-[#4edea3]/30 rounded-lg p-4">
+              <div className="font-mono text-[10px] text-[#4edea3] uppercase font-bold">Personal Net Worth</div>
+              <div className="mt-2 font-mono text-2xl text-[#4edea3] font-bold">{mask(personalNetWorth)}</div>
+              <div className="mt-1 text-xs text-[#bbcabf]">Cash + assets − liabilities</div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Section 2: "My Companies" Portfolio Grid */}
       <section className="px-4 sm:px-6 py-4 sm:py-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -639,7 +662,7 @@ export const WealthCommandDashboard: React.FC<WealthCommandDashboardProps> = ({
                   Ending Liquid Personal Cash
                 </span>
                 <div className="font-mono text-2xl font-bold text-[#4edea3]">
-                  {mask(metrics.personalCash)}
+                  {mask(personalCash)}
                 </div>
               </div>
               <span className="material-symbols-outlined text-[#4edea3] text-4xl">account_balance_wallet</span>
