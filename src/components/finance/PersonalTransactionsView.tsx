@@ -25,6 +25,7 @@ export const PersonalTransactionsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState<PersonalTransaction | null>(null);
   const [form, setForm] = useState({
     accountId: '',
     transactionType: 'income',
@@ -65,8 +66,8 @@ export const PersonalTransactionsView: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const response = await fetch('/api/personal-finance/transactions', {
-        method: 'POST',
+      const response = await fetch(editing ? '/api/personal-finance/transactions/' + editing.id : '/api/personal-finance/transactions',
+        method: editing ? 'PUT' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -80,13 +81,21 @@ export const PersonalTransactionsView: React.FC = () => {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Could not save transaction');
-      setTransactions((current) => [data, ...current]);
+      setTransactions((current) => editing ? current.map((item) => item.id === data.id ? data : item) : [data, ...current]);
+      setEditing(null);
       setForm((current) => ({ ...current, description: '', amount: '' }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save transaction');
     } finally {
       setSaving(false);
     }
+  };
+
+  const removeTransaction = async (transaction: PersonalTransaction) => {
+    if (!window.confirm('Remove this transaction? This permanently deletes the record.')) return;
+    const response = await fetch('/api/personal-finance/transactions/' + transaction.id, { method: 'DELETE', credentials: 'include' });
+    if (!response.ok) { const data = await response.json(); setError(data.error || 'Could not remove transaction'); return; }
+    setTransactions((current) => current.filter((item) => item.id !== transaction.id));
   };
 
   const accountName = (accountId: string) => accounts.find((account) => account.id === accountId)?.name || 'Unknown account';
@@ -142,9 +151,13 @@ export const PersonalTransactionsView: React.FC = () => {
                     </div>
                     <p className="mt-1 text-xs font-mono text-[#86948a]">{transaction.transactionDate} · {accountName(transaction.accountId)} · {transaction.category || 'Uncategorized'}</p>
                   </div>
+                  <div className="flex items-center gap-3">
                   <span className={`font-mono font-bold ${transaction.transactionType === 'income' ? 'text-[#4edea3]' : 'text-[#ffb4ab]'}`}>
                     {transaction.transactionType === 'income' ? '+' : '-'}${Number(transaction.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </span>
+                  <button type="button" onClick={() => { setEditing(transaction); setForm({ accountId: transaction.accountId, transactionType: transaction.transactionType, category: transaction.category || 'Other', description: transaction.description || '', amount: transaction.amount, transactionDate: transaction.transactionDate }); }} className="rounded-md border border-[#2d3449] px-3 py-2 text-xs text-[#dae2fd]">Edit</button>
+                  <button type="button" onClick={() => void removeTransaction(transaction)} className="rounded-md border border-[#ff7886]/40 bg-[#ff7886]/10 px-3 py-2 text-xs text-[#ffb4ab]">Remove</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -152,8 +165,8 @@ export const PersonalTransactionsView: React.FC = () => {
         </section>
 
         <section className="rounded-xl border border-[#4edea3]/30 bg-[#131b2e] p-5 h-fit">
-          <p className="text-[10px] uppercase tracking-wider text-[#4edea3] font-mono font-bold">New transaction</p>
-          <h2 className="mt-1 text-lg font-bold text-[#dae2fd]">Record income or expense</h2>
+          <p className="text-[10px] uppercase tracking-wider text-[#4edea3] font-mono font-bold">{editing ? 'Edit transaction' : 'New transaction'}</p>
+          <h2 className="mt-1 text-lg font-bold text-[#dae2fd]">{editing ? 'Correct transaction' : 'Record income or expense'}</h2>
           <form onSubmit={addTransaction} className="mt-5 space-y-4">
             <label className="block">
               <span className="block text-xs font-semibold text-[#bbcabf] mb-1.5">Account</span>
@@ -190,8 +203,9 @@ export const PersonalTransactionsView: React.FC = () => {
               <input type="date" value={form.transactionDate} onChange={(e) => setForm({ ...form, transactionDate: e.target.value })} className="w-full rounded-md border border-[#2d3449] bg-[#0b1326] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]" />
             </label>
             <button type="submit" disabled={saving || !accounts.length} className="w-full h-10 rounded-md bg-[#4edea3] text-[#003824] text-xs font-bold disabled:opacity-60">
-              {saving ? 'Saving…' : 'Save transaction'}
+              {saving ? 'Saving…' : editing ? 'Update transaction' : 'Save transaction'}
             </button>
+            {editing && <button type="button" onClick={() => { setEditing(null); setForm((current) => ({ ...current, description: '', amount: '' })); }} className="w-full text-xs text-[#86948a]">Cancel edit</button>}
           </form>
         </section>
       </div>
