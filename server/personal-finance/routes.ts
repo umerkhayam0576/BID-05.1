@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm'
 import { Router } from 'express'
 import { db } from '../db'
-import { personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalProperties } from '../db/app-schema'
+import { personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalProperties, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, users } from '../db/app-schema'
 import { getAuthenticatedUserId } from '../auth/middleware'
 
 const router = Router()
@@ -318,6 +318,168 @@ router.post('/liabilities/:id/payments', async (req, res) => {
     }).returning()
     res.status(201).json(payment)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to record payment' }) }
+})
+
+router.get('/money-relationships', async (req, res) => {
+  const currentUserId = userId(req)
+  const rows = await db.select().from(personalMoneyRelationships).where(
+    and(
+      eq(personalMoneyRelationships.status, 'active'),
+      // The relationship is shared: either side can see the same record.
+      // Drizzle's and() cannot express OR without importing it, so fetch both
+      // directions with two small queries and merge them below.
+    )
+  )
+  const mine = rows.filter((row) => row.borrowerUserId === currentUserId || row.lenderUserId === currentUserId)
+  const otherIds = [...new Set(mine.map((row) => row.borrowerUserId === currentUserId ? row.lenderUserId : row.borrowerUserId))]
+  const people = otherIds.length
+    ? await db.select({ id: users.id, displayName: users.displayName, email: users.email })
+      .from(users)
+      .where(eq(users.status, 'active'))
+    : []
+  const peopleById = new Map(people.filter((person) => otherIds.includes(person.id)).map((person) => [person.id, person]))
+  res.json(mine.map((row) => {
+    const isBorrower = row.borrowerUserId === currentUserId
+    const otherId = isBorrower ? row.lenderUserId : row.borrowerUserId
+    const other = peopleById.get(otherId)
+    return {
+      ...row,
+      direction: isBorrower ? 'borrowed' : 'lent',
+      counterparty: { id: otherId, displayName: other?.displayName || 'Connected person', email: other?.email || '' },
+    }
+  }))
+})
+
+router.post('/money-relationships', async (req, res) => {
+  try {
+    const currentUserId = userId(req)
+    const counterpartyEmail = textValue(req.body?.counterpartyEmail, 'counterpartyEmail').toLowerCase()
+    if (counterpartyEmail === '') throw new Error('counterpartyEmail is required')
+    const [counterparty] = await db.select().from(users).where(and(eq(users.email, counterpartyEmail), eq(users.status, 'active'))).limit(1)
+    if (!counterparty) return res.status(404).json({ error: 'No active user was found with that email' })
+    if (counterparty.id === currentUserId) return res.status(400).json({ error: 'You cannot create a money relationship with yourself' })
+    const relationshipType = typeof req.body?.relationshipType === 'string' ? req.body.relationshipType : 'loan'
+    if (relationshipType !== 'loan') return res.status(400).json({ error: 'Only loan relationships are supported here' })
+    const direction = req.body?.direction === 'lent' ? 'lent' : 'borrowed'
+    const originalAmount = Number(req.body?.amount)
+    if (!Number.isFinite(originalAmount) || originalAmount <= 0) throw new Error('Loan amount must be greater than zero')
+    const borrowerUserId = direction === 'borrowed' ? currentUserId : counterparty.id
+    const lenderUserId = direction === 'borrowed' ? counterparty.id : currentUserId
+    const description = textValue(req.body?.description || 'Personal loan', 'description')
+    const currency = typeof req.body?.currency === 'string' ? req.body.currency.trim().toUpperCase() : 'USD'
+    const [relationship] = await db.insert(personalMoneyRelationships).values({
+      borrowerUserId, lenderUserId, relationshipType, description,
+      originalAmount: originalAmount.toFixed(2), remainingAmount: originalAmount.toFixed(2),
+      currency, interestRate: Number(req.body?.interestRate || 0).toFixed(4),
+      status: 'active',
+      startDate: typeof req.body?.startDate === 'string' && req.body.startDate ? req.body.startDate : null,
+      dueDate: typeof req.body?.dueDate === 'string' && req.body.dueDate ? req.body.dueDate : null,
+      notes: typeof req.body?.notes === 'string' ? req.body.notes.trim() || null : null,
+    }).returning()
+    res.status(201).json(relationship)
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create money relationship' })
+  }
+})
+
+router.post('/money-relationships/:id/settlements', async (req, res) => {
+  try {
+    const currentUserId = userId(req)
+    const relationshipId = req.params.id
+    const [relationship] = await db.select().from(personalMoneyRelationships)
+      .where(and(eq(personalMoneyRelationships.id, relationshipId), eq(personalMoneyRelationships.status, 'active')))
+      .limit(1)
+    if (!relationship) return res.status(404).json({ error: 'Money relationship not found' })
+    if (relationship.borrowerUserId !== currentUserId && relationship.lenderUserId !== currentUserId) {
+      return res.status(403).json({ error: 'Money relationship access denied' })
+    }
+
+    const paymentAmount = Number(req.body?.amount)
+    const paymentDate = typeof req.body?.paymentDate === 'string' && req.body.paymentDate ? req.body.paymentDate : new Date().toISOString().slice(0, 10)
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) throw new Error('Settlement amount must be greater than zero')
+    if (paymentAmount > Number(relationship.remainingAmount) + 0.01) throw new Error('Settlement cannot exceed the remaining loan balance')
+
+    const [settlement] = await db.insert(personalSettlements).values({
+      payerUserId: relationship.borrowerUserId,
+      payeeUserId: relationship.lenderUserId,
+      paymentDate,
+      totalAmount: paymentAmount.toFixed(2),
+      currency: relationship.currency,
+      notes: typeof req.body?.notes === 'string' ? req.body.notes.trim() || null : null,
+    }).returning()
+
+    const principalAmount = Number(req.body?.principalAmount ?? paymentAmount)
+    const interestAmount = Number(req.body?.interestAmount ?? Math.max(0, paymentAmount - principalAmount))
+    if (principalAmount < 0 || interestAmount < 0 || principalAmount + interestAmount > paymentAmount + 0.01) {
+      throw new Error('Settlement allocation is invalid')
+    }
+    if (principalAmount > Number(relationship.remainingAmount) + 0.01) throw new Error('Principal cannot exceed the remaining loan balance')
+
+    const remainingAfter = Math.max(0, Number(relationship.remainingAmount) - principalAmount)
+    await db.insert(personalSettlementAllocations).values({
+      settlementId: settlement.id,
+      relationshipId: relationship.id,
+      amount: paymentAmount.toFixed(2),
+      principalAmount: principalAmount.toFixed(2),
+      interestAmount: interestAmount.toFixed(2),
+    })
+    await db.update(personalMoneyRelationships).set({
+      remainingAmount: remainingAfter.toFixed(2),
+      status: remainingAfter <= 0.01 ? 'paid_off' : 'partially_paid',
+      updatedAt: new Date(),
+    }).where(eq(personalMoneyRelationships.id, relationship.id))
+
+    // Keep both personal ledgers synchronized when a personal cash account exists.
+    const [payerAccount] = await db.select().from(personalAccounts)
+      .where(and(eq(personalAccounts.userId, relationship.borrowerUserId), eq(personalAccounts.status, 'active')))
+      .orderBy(desc(personalAccounts.createdAt)).limit(1)
+    if (payerAccount) {
+      await db.insert(personalTransactions).values({
+        userId: relationship.borrowerUserId, accountId: payerAccount.id, transactionType: 'expense',
+        category: 'Loan Payment', description: 'Payment to ' + (relationship.lenderUserId === currentUserId ? 'lender' : 'personal lender'),
+        amount: paymentAmount.toFixed(2), transactionDate: paymentDate,
+        notes: 'Automatically linked to personal loan settlement.', sourceType: 'person-to-person-settlement', sourceId: settlement.id,
+      })
+    }
+    const [payeeAccount] = await db.select().from(personalAccounts)
+      .where(and(eq(personalAccounts.userId, relationship.lenderUserId), eq(personalAccounts.status, 'active')))
+      .orderBy(desc(personalAccounts.createdAt)).limit(1)
+    if (payeeAccount) {
+      await db.insert(personalTransactions).values({
+        userId: relationship.lenderUserId, accountId: payeeAccount.id, transactionType: 'income',
+        category: 'Loan Received', description: 'Payment received from borrower',
+        amount: paymentAmount.toFixed(2), transactionDate: paymentDate,
+        notes: 'Automatically linked to personal loan settlement.', sourceType: 'person-to-person-settlement', sourceId: settlement.id,
+      })
+    }
+
+    res.status(201).json({ settlement, relationship: { ...relationship, remainingAmount: remainingAfter.toFixed(2), status: remainingAfter <= 0.01 ? 'paid_off' : 'partially_paid' } })
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to record settlement' })
+  }
+})
+
+router.get('/money-relationships/:id/settlements', async (req, res) => {
+  const currentUserId = userId(req)
+  const [relationship] = await db.select().from(personalMoneyRelationships)
+    .where(eq(personalMoneyRelationships.id, req.params.id)).limit(1)
+  if (!relationship || (relationship.borrowerUserId !== currentUserId && relationship.lenderUserId !== currentUserId)) {
+    return res.status(404).json({ error: 'Money relationship not found' })
+  }
+  const allocations = await db.select({
+    id: personalSettlementAllocations.id,
+    settlementId: personalSettlementAllocations.settlementId,
+    relationshipId: personalSettlementAllocations.relationshipId,
+    amount: personalSettlementAllocations.amount,
+    principalAmount: personalSettlementAllocations.principalAmount,
+    interestAmount: personalSettlementAllocations.interestAmount,
+    paymentDate: personalSettlements.paymentDate,
+    notes: personalSettlements.notes,
+  }).from(personalSettlementAllocations)
+    .innerJoin(personalSettlements, eq(personalSettlements.id, personalSettlementAllocations.settlementId))
+    .where(eq(personalSettlementAllocations.relationshipId, req.params.id))
+    .orderBy(desc(personalSettlements.paymentDate), desc(personalSettlements.createdAt))
+  res.json(allocations)
 })
 
 router.post('/liabilities', async (req, res) => {
