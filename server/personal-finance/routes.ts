@@ -14,12 +14,19 @@ router.get('/summary', async (req, res) => {
     db.select().from(personalAssets).where(and(eq(personalAssets.userId, currentUserId), eq(personalAssets.status, 'active'))),
     db.select().from(personalLiabilities).where(and(eq(personalLiabilities.userId, currentUserId), eq(personalLiabilities.status, 'active'))),
   ])
-  const openingBalance = accounts.reduce((total, account) => total + Number(account.openingBalance), 0)
-  const income = transactions.filter((t) => t.transactionType === 'income').reduce((total, t) => total + Number(t.amount), 0)
-  const expenses = transactions.filter((t) => t.transactionType === 'expense').reduce((total, t) => total + Number(t.amount), 0)
+  let openingBalance = 0
+  for (const account of accounts) openingBalance += Number(account.openingBalance)
+  let income = 0
+  let expenses = 0
+  for (const transaction of transactions) {
+    if (transaction.transactionType === 'income') income += Number(transaction.amount)
+    if (transaction.transactionType === 'expense') expenses += Number(transaction.amount)
+  }
   const cashBalance = openingBalance + income - expenses
-  const assetTotal = assets.reduce((total, asset) => total + Number(asset.currentValue), 0)
-  const liabilityTotal = liabilities.reduce((total, liability) => total + Number(liability.currentBalance), 0)
+  let assetTotal = 0
+  for (const asset of assets) assetTotal += Number(asset.currentValue)
+  let liabilityTotal = 0
+  for (const liability of liabilities) liabilityTotal += Number(liability.currentBalance)
   res.json({
     cashBalance: cashBalance.toFixed(2), income: income.toFixed(2), expenses: expenses.toFixed(2),
     assetTotal: assetTotal.toFixed(2), liabilityTotal: liabilityTotal.toFixed(2),
