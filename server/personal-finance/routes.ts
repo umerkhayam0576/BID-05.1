@@ -302,6 +302,7 @@ router.put('/properties/:id', async (req, res) => {
       notes: typeof req.body?.notes === 'string' ? req.body.notes : null,
     }).where(and(eq(personalProperties.id, req.params.id), eq(personalProperties.userId, userId(req)), eq(personalProperties.status, 'active'))).returning()
     if (!property) return res.status(404).json({ error: 'Personal property not found' })
+    await syncPropertyRentalIncome(property)
     res.json(property)
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update property' }) }
 })
