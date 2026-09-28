@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CompanyEntity, LedgerEvent, CapTableMember } from '../../types/wealth';
 import { CompanyDataImportPanel } from '../views/CompanyDataImportPanel';
 
@@ -45,6 +45,32 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   const [viewingDoc, setViewingDoc] = useState<string | null>(null);
   const [isCompanyImportOpen, setIsCompanyImportOpen] = useState(false);
   const [legalSection, setLegalSection] = useState<'Ownership' | 'Agreements' | 'Legal Documents' | 'Approvals' | 'Signatures' | 'Audit History'>('Ownership');
+  const [ownershipData, setOwnershipData] = useState<any>(null);
+  const [ownershipLoading, setOwnershipLoading] = useState(false);
+  const [ownershipError, setOwnershipError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== 'ownership-legal' || legalSection !== 'Ownership') return;
+
+    let cancelled = false;
+    const loadOwnership = async () => {
+      setOwnershipLoading(true);
+      setOwnershipError(null);
+      try {
+        const response = await fetch(`/api/ownership-legal/${company.id}/ownership`, { credentials: 'include' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'Unable to load ownership data');
+        if (!cancelled) setOwnershipData(payload);
+      } catch (error: any) {
+        if (!cancelled) setOwnershipError(error?.message || 'Unable to load ownership data');
+      } finally {
+        if (!cancelled) setOwnershipLoading(false);
+      }
+    };
+
+    loadOwnership();
+    return () => { cancelled = true; };
+  }, [activeTab, legalSection, company.id]);
 
   // Dilution Simulator State
   const [raiseAmount, setRaiseAmount] = useState<number>(250000);
@@ -312,68 +338,119 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
               ))}
             </div>
 
-            {legalSection === 'Ownership' && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                    <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Owners</div>
-                    <div className="text-2xl font-bold text-[#dae2fd] mt-2">{company.capTable.length}</div>
-                  </div>
-                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                    <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Ownership</div>
-                    <div className="text-2xl font-bold text-[#4edea3] mt-2">{company.capTable.reduce((sum, member) => sum + member.percentage, 0).toFixed(2)}%</div>
-                  </div>
-                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                    <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Current Structure</div>
-                    <div className="text-2xl font-bold text-[#dae2fd] mt-2">{company.ownershipType}</div>
-                  </div>
-                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                    <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Status</div>
-                    <div className="text-2xl font-bold text-[#4edea3] mt-2">Active</div>
-                  </div>
-                </div>
+            {legalSection === 'Ownership' && (() => {
+              const owners = ownershipData?.owners ?? [];
+              const history = ownershipData?.history ?? [];
+              const changeRequests = ownershipData?.changeRequests ?? [];
+              const totalOwnership = owners.reduce((sum: number, owner: any) => sum + Number(owner.ownershipPercent || 0), 0);
 
-                <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg overflow-hidden">
-                  <div className="p-5 border-b border-[#222a3d] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <h2 className="font-['Manrope'] font-bold text-lg text-[#dae2fd]">Ownership Structure</h2>
-                      <p className="text-xs text-[#bbcabf] font-mono mt-1">Current ownership snapshot for {company.name}</p>
+              return (
+                <>
+                  {ownershipLoading && (
+                    <div className="p-4 bg-[#131b2e] border border-[#222a3d] rounded-lg text-xs font-mono text-[#bbcabf]">
+                      Loading live ownership records…
                     </div>
-                    <span className="text-xs font-mono px-2.5 py-1 rounded bg-[#4edea3]/10 text-[#4edea3] border border-[#4edea3]/30">100% target structure</span>
-                  </div>
-                  <div className="divide-y divide-[#222a3d]">
-                    {company.capTable.map((member, index) => (
-                      <div key={index} className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-full bg-[#0b1326] border border-[#222a3d] flex items-center justify-center text-[#4edea3] font-mono font-bold">
-                            {member.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-bold text-[#dae2fd] truncate">{member.name}</div>
-                            <div className="text-xs text-[#bbcabf] font-mono">{member.role}</div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-6 text-right font-mono text-xs">
-                          <div><div className="text-[#bbcabf]">Ownership</div><div className="text-[#4edea3] font-bold mt-1">{member.percentage}%</div></div>
-                          <div><div className="text-[#bbcabf]">Voting</div><div className="text-[#dae2fd] font-bold mt-1">{member.votingRights ? 'Enabled' : 'None'}</div></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                    <h3 className="font-bold text-[#dae2fd] mb-2">Ownership History</h3>
-                    <p className="text-xs text-[#bbcabf] leading-relaxed">Historical ownership changes and effective dates will be shown here as the secure ownership API is connected.</p>
+                  {ownershipError && (
+                    <div className="p-4 bg-[#2a1720] border border-[#ffb2b7]/30 rounded-lg text-xs font-mono text-[#ffb2b7]">
+                      {ownershipError}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                      <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Owners</div>
+                      <div className="text-2xl font-bold text-[#dae2fd] mt-2">{owners.length}</div>
+                    </div>
+                    <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                      <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Ownership</div>
+                      <div className="text-2xl font-bold text-[#4edea3] mt-2">{totalOwnership.toFixed(2)}%</div>
+                      <div className="text-[10px] font-mono text-[#bbcabf] mt-1">{totalOwnership === 100 ? 'Balanced' : 'Review required'}</div>
+                    </div>
+                    <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                      <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Current Structure</div>
+                      <div className="text-2xl font-bold text-[#dae2fd] mt-2">{company.ownershipType}</div>
+                    </div>
+                    <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                      <div className="text-xs font-mono text-[#bbcabf] uppercase tracking-wider">Pending Changes</div>
+                      <div className="text-2xl font-bold text-[#adc6ff] mt-2">{changeRequests.filter((request: any) => request.status === 'pending').length}</div>
+                    </div>
                   </div>
-                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
-                    <h3 className="font-bold text-[#dae2fd] mb-2">Pending Changes</h3>
-                    <p className="text-xs text-[#bbcabf] leading-relaxed">Pending ownership change requests will appear here with approval status.</p>
+
+                  <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg overflow-hidden">
+                    <div className="p-5 border-b border-[#222a3d] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <h2 className="font-['Manrope'] font-bold text-lg text-[#dae2fd]">Live Ownership Structure</h2>
+                        <p className="text-xs text-[#bbcabf] font-mono mt-1">Loaded from the secured ownership API for {company.name}</p>
+                      </div>
+                      <span className="text-xs font-mono px-2.5 py-1 rounded bg-[#4edea3]/10 text-[#4edea3] border border-[#4edea3]/30">100% target structure</span>
+                    </div>
+                    {owners.length === 0 ? (
+                      <div className="p-6 text-sm text-[#bbcabf] font-mono">No active ownership records found.</div>
+                    ) : (
+                      <div className="divide-y divide-[#222a3d]">
+                        {owners.map((owner: any) => (
+                          <div key={owner.userId} className="p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-full bg-[#0b1326] border border-[#222a3d] flex items-center justify-center text-[#4edea3] font-mono font-bold">
+                                {(owner.displayName || 'Owner').split(/\\s+/).map((part: string) => part[0]).join('').slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-bold text-[#dae2fd] truncate">{owner.displayName || 'Owner'}</div>
+                                <div className="text-xs text-[#bbcabf] font-mono">{owner.entityRole || 'member'} • {owner.status}</div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-5 text-right font-mono text-xs">
+                              <div><div className="text-[#bbcabf]">Ownership</div><div className="text-[#4edea3] font-bold mt-1">{owner.ownershipPercent}%</div></div>
+                              <div><div className="text-[#bbcabf]">Profit Share</div><div className="text-[#adc6ff] font-bold mt-1">{owner.profitSharePercent}%</div></div>
+                              <div><div className="text-[#bbcabf]">Status</div><div className="text-[#dae2fd] font-bold mt-1">{owner.status}</div></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              </>
-            )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                      <h3 className="font-bold text-[#dae2fd] mb-2">Ownership History</h3>
+                      {history.length === 0 ? (
+                        <p className="text-xs text-[#bbcabf] leading-relaxed">No historical ownership snapshots have been recorded yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {history.map((item: any) => (
+                            <div key={item.id} className="flex items-center justify-between gap-3 p-2.5 bg-[#0b1326] rounded border border-[#222a3d] text-xs font-mono">
+                              <span className="text-[#bbcabf]">{item.effectiveFrom}</span>
+                              <span className="text-[#4edea3]">{item.ownershipPercent}% ownership</span>
+                              <span className="text-[#dae2fd]">{item.status}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-5">
+                      <h3 className="font-bold text-[#dae2fd] mb-2">Pending Ownership Changes</h3>
+                      {changeRequests.length === 0 ? (
+                        <p className="text-xs text-[#bbcabf] leading-relaxed">No ownership change requests are currently recorded.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {changeRequests.map((request: any) => (
+                            <div key={request.id} className="p-3 bg-[#0b1326] rounded border border-[#222a3d] text-xs font-mono">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-[#bbcabf]">{request.effectiveDate || 'No effective date'}</span>
+                                <span className="text-[#adc6ff] uppercase">{request.status}</span>
+                              </div>
+                              <div className="text-[#dae2fd] mt-1">{request.reason || 'Ownership structure change request'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             {legalSection === 'Agreements' && (
               <div className="bg-[#131b2e] border border-[#222a3d] rounded-lg p-6 space-y-4">
