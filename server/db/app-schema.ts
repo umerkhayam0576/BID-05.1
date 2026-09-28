@@ -164,7 +164,7 @@ export const reminders = pgTable('app_reminders', {
 
 export const notifications = pgTable('app_notifications', {
   id: uuid('id').defaultRandom().primaryKey(),
-  workspaceId: uuid('workspace_id').notNull(),
+  workspaceId: uuid('workspace_id'),
   recipientUserId: text('recipient_user_id').notNull(),
   type: text('type').notNull(),
   title: text('title').notNull(),
