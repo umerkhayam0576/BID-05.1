@@ -23,13 +23,18 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
   const [profileName, setProfileName] = useState('Loading...');
   const [profileTitle, setProfileTitle] = useState('Personal Principal & Managing Partner');
   const [profileAvatar, setProfileAvatar] = useState('');
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Close menus on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setIsNotificationsOpen(false);
+      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -118,26 +123,46 @@ export const WealthTopHeader: React.FC<WealthTopHeaderProps> = ({
           </button>
         )}
 
-        {/* User Profile */}
-        <button
-          type="button"
-          onClick={() => setIsProfileOpen(true)}
-          className="flex items-center gap-2.5 pl-2 border-l border-[#222a3d] cursor-pointer group"
-          aria-label="Open profile settings"
-          title="Profile & Settings"
-        >
-          <div className="flex flex-col text-right hidden lg:flex">
-            <span className="font-['Manrope'] font-semibold text-sm text-[#dae2fd] leading-tight group-hover:text-white">
-              {profileName}
-            </span>
-            <span className="font-mono text-[10px] text-[#4edea3] font-semibold">
-              {profileTitle}
-            </span>
-          </div>
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-tr from-[#10b981] to-[#3b82f6] text-[#002113] font-bold text-xs flex items-center justify-center ring-1 ring-[#3c4a42]">
-            {profileAvatar ? <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" /> : profileName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'U'}
-          </div>
-        </button>
+        {/* User Profile menu */}
+        <div className="relative" ref={profileMenuRef}>
+          <button
+            type="button"
+            onClick={() => setIsProfileMenuOpen((open) => !open)}
+            className="flex items-center gap-2.5 pl-2 border-l border-[#222a3d] cursor-pointer group"
+            aria-haspopup="menu"
+            aria-expanded={isProfileMenuOpen}
+            aria-label="Open profile menu"
+            title="Profile menu"
+          >
+            <div className="flex flex-col text-right hidden lg:flex">
+              <span className="font-['Manrope'] font-semibold text-sm text-[#dae2fd] leading-tight group-hover:text-white">{profileName}</span>
+              <span className="font-mono text-[10px] text-[#4edea3] font-semibold">{profileTitle}</span>
+            </div>
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-tr from-[#10b981] to-[#3b82f6] text-[#002113] font-bold text-xs flex items-center justify-center ring-1 ring-[#3c4a42]">
+              {profileAvatar ? <img src={profileAvatar} alt="Profile" className="w-full h-full object-cover" /> : profileName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'U'}
+            </div>
+            <span className="material-symbols-outlined text-base text-[#86948a]">{isProfileMenuOpen ? 'expand_less' : 'expand_more'}</span>
+          </button>
+
+          {isProfileMenuOpen && (
+            <div className="absolute right-0 mt-2 w-56 rounded-lg border border-[#2d3449] bg-[#131b2e] shadow-2xl z-50 p-2" role="menu">
+              <div className="px-3 py-2 border-b border-[#222a3d] mb-1">
+                <div className="text-sm font-semibold text-white truncate">{profileName}</div>
+                <div className="text-[10px] font-mono text-[#86948a] truncate">{profileTitle}</div>
+              </div>
+              <button type="button" onClick={() => { setIsProfileOpen(true); setIsProfileMenuOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sm text-[#dae2fd] hover:bg-[#222a3d] hover:text-white text-left" role="menuitem">
+                <span className="material-symbols-outlined text-base">manage_accounts</span>
+                Profile & Settings
+              </button>
+              {onLogout && (
+                <button type="button" onClick={() => { setIsProfileMenuOpen(false); onLogout() }} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-md text-sm text-[#ffb2b7] hover:bg-[#222a3d] hover:text-white text-left" role="menuitem">
+                  <span className="material-symbols-outlined text-base">logout</span>
+                  Log out
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         <ProfileSettingsModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       </div>
