@@ -261,6 +261,19 @@ export const personalLiabilities = pgTable('app_personal_liabilities', {
   ...timestamps,
 })
 
+export const personalDebtPayments = pgTable('app_personal_debt_payments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull(),
+  liabilityId: text('liability_id').notNull(),
+  paymentDate: date('payment_date').notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  principalAmount: numeric('principal_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  interestAmount: numeric('interest_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  balanceAfter: numeric('balance_after', { precision: 14, scale: 2 }).default('0').notNull(),
+  notes: text('notes'),
+  ...timestamps,
+})
+
 export const personalProperties = pgTable('app_personal_properties', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull(),
@@ -279,4 +292,4 @@ export const personalProperties = pgTable('app_personal_properties', {
   ...timestamps,
 })
 
-export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalProperties }
+export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalProperties }
