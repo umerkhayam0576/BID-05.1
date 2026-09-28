@@ -68,10 +68,31 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
           item.slug === company.id ||
           String(item.name || '').trim().toLowerCase() === normalizedCompanyName
         );
-        if (!entity?.id) throw new Error(`No database workspace is linked to ${company.name}`);
-        if (!cancelled) setWorkspaceId(entity.id);
+        let linkedEntity = entity;
+        if (!linkedEntity?.id) {
+          const createResponse = await fetch('/api/entities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              name: company.name,
+              legalStructure: 'llc',
+              industryType: company.industry === 'construction' ? 'construction_management' : 'services',
+              currency: 'USD',
+              ownershipPercent: String(company.legalOwnershipPercent || 100),
+              profitSharePercent: String(company.profitSharePercent || company.legalOwnershipPercent || 100),
+            }),
+          });
+          const createPayload = await createResponse.json().catch(() => ({}));
+          if (!createResponse.ok || !createPayload.entity?.id) {
+            throw new Error(createPayload.error || `Unable to create a database workspace for ${company.name}`);
+          }
+          linkedEntity = createPayload.entity;
+        }
 
-        const response = await fetch(`/api/ownership-legal/${entity.id}/ownership`, { credentials: 'include' });
+        if (!cancelled) setWorkspaceId(linkedEntity.id);
+
+        const response = await fetch(`/api/ownership-legal/${linkedEntity.id}/ownership`, { credentials: 'include' });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Unable to load ownership data');
         if (!cancelled) setOwnershipData(payload);
