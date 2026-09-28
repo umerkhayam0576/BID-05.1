@@ -573,6 +573,11 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       <PersonalFinanceHub
         onLogout={onLogout}
         activeWorkspace={activeWorkspace}
+        onOpenStudio={() => {
+          setActiveTab('studio');
+          setActiveWorkspace('pre-con-estimating');
+          localStorage.setItem('bid_exact_active_workspace', 'pre-con-estimating');
+        }}
         onSwitchWorkspace={(ws) => {
           setActiveWorkspace(ws);
           localStorage.setItem('bid_exact_active_workspace', ws);
