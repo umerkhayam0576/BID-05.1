@@ -251,4 +251,22 @@ export const personalLiabilities = pgTable('app_personal_liabilities', {
   ...timestamps,
 })
 
-export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities }
+export const personalProperties = pgTable('app_personal_properties', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull(),
+  name: text('name').notNull(),
+  propertyType: text('property_type').notNull(),
+  location: text('location'),
+  purchaseDate: date('purchase_date'),
+  purchasePrice: numeric('purchase_price', { precision: 14, scale: 2 }).default('0').notNull(),
+  currentValue: numeric('current_value', { precision: 14, scale: 2 }).default('0').notNull(),
+  currency: text('currency').default('USD').notNull(),
+  mortgageBalance: numeric('mortgage_balance', { precision: 14, scale: 2 }).default('0').notNull(),
+  monthlyPayment: numeric('monthly_payment', { precision: 14, scale: 2 }).default('0').notNull(),
+  rentalIncome: numeric('rental_income', { precision: 14, scale: 2 }).default('0').notNull(),
+  status: text('status').default('active').notNull(),
+  notes: text('notes'),
+  ...timestamps,
+})
+
+export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalProperties }
