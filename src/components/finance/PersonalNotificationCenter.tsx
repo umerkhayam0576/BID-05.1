@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { Bell } from 'lucide-react'
 
 type PersonalNotification = {
   id: string
@@ -61,7 +62,7 @@ export const PersonalNotificationCenter: React.FC = () => {
         aria-label="Personal finance notifications"
         title="Personal finance notifications"
       >
-        <span className="text-lg">🔔</span>
+        <Bell className="mx-auto h-5 w-5" strokeWidth={2} aria-hidden="true" />
         {unread > 0 && (
           <span className="absolute -right-1 -top-1 min-w-5 h-5 rounded-full bg-[#ff7886] px-1 text-[10px] font-bold leading-5 text-[#21080b]">
             {unread > 99 ? '99+' : unread}
