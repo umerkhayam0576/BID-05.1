@@ -10,7 +10,7 @@ import { workspaceRoutes } from './server/workspace/routes'
 import { requireAuthentication } from './server/auth/middleware'
 import { entityRoutes } from './server/entity/routes'
 import { personalFinanceRoutes } from './server/personal-finance/routes'
-import { ownershipLegalRoutes } from './server/ownership-legal-routes'
+import { ownershipLegalRoutes } from './server/ownership-legal/routes'
 
 export function createApp() {
   const app = express()
