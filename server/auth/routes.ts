@@ -1,7 +1,7 @@
 import { Request, Router } from 'express'
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import { db } from '../db'
-import { users, userCredentials, userSessions } from '../db/app-schema'
+import { users, userCredentials, userSessions, userProfiles } from '../db/app-schema'
 import {
   createSessionToken,
   hashPassword,
@@ -117,6 +117,101 @@ authRoutes.post('/logout', async (req, res) => {
     return res.status(204).end()
   } catch {
     return res.status(500).json({ error: 'Unable to sign out' })
+  }
+})
+
+authRoutes.get('/profile', async (req, res) => {
+  try {
+    const token = readCookie(req, SESSION_COOKIE_NAME)
+    if (!token) return res.status(401).json({ error: 'Authentication required' })
+
+    const [session] = await db.select({ userId: userSessions.userId })
+      .from(userSessions)
+      .where(and(eq(userSessions.tokenHash, hashSessionToken(token)), isNull(userSessions.revokedAt), gt(userSessions.expiresAt, new Date())))
+      .limit(1)
+    if (!session) return res.status(401).json({ error: 'Authentication required' })
+
+    const [user] = await db.select({
+      id: users.id, email: users.email, displayName: users.displayName, status: users.status,
+    }).from(users).where(eq(users.id, session.userId)).limit(1)
+    if (!user || user.status !== 'active') return res.status(401).json({ error: 'Authentication required' })
+
+    let [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, user.id)).limit(1)
+    if (!profile) {
+      [profile] = await db.insert(userProfiles).values({ userId: user.id }).returning()
+    }
+    return res.json({ user, profile })
+  } catch {
+    return res.status(500).json({ error: 'Unable to read profile' })
+  }
+})
+
+authRoutes.patch('/profile', async (req, res) => {
+  try {
+    const token = readCookie(req, SESSION_COOKIE_NAME)
+    if (!token) return res.status(401).json({ error: 'Authentication required' })
+
+    const [session] = await db.select({ userId: userSessions.userId })
+      .from(userSessions)
+      .where(and(eq(userSessions.tokenHash, hashSessionToken(token)), isNull(userSessions.revokedAt), gt(userSessions.expiresAt, new Date())))
+      .limit(1)
+    if (!session) return res.status(401).json({ error: 'Authentication required' })
+
+    const displayName = typeof req.body?.displayName === 'string' ? req.body.displayName.trim() : ''
+    if (displayName.length < 2) return res.status(400).json({ error: 'Name must be at least 2 characters' })
+
+    const fields = {
+      phone: typeof req.body?.phone === 'string' ? req.body.phone.trim() || null : null,
+      jobTitle: typeof req.body?.jobTitle === 'string' ? req.body.jobTitle.trim() || null : null,
+      bio: typeof req.body?.bio === 'string' ? req.body.bio.trim() || null : null,
+      avatarUrl: typeof req.body?.avatarUrl === 'string' ? req.body.avatarUrl.trim() || null : null,
+      country: typeof req.body?.country === 'string' ? req.body.country.trim() || null : null,
+      timezone: typeof req.body?.timezone === 'string' && req.body.timezone.trim() ? req.body.timezone.trim() : 'UTC',
+      language: typeof req.body?.language === 'string' && req.body.language.trim() ? req.body.language.trim() : 'en',
+      preferredCurrency: typeof req.body?.preferredCurrency === 'string' && req.body.preferredCurrency.trim() ? req.body.preferredCurrency.trim().toUpperCase() : 'USD',
+      dateFormat: typeof req.body?.dateFormat === 'string' && req.body.dateFormat.trim() ? req.body.dateFormat.trim() : 'YYYY-MM-DD',
+      emailNotifications: req.body?.emailNotifications !== false,
+      inAppNotifications: req.body?.inAppNotifications !== false,
+    }
+
+    await db.update(users).set({ displayName, updatedAt: new Date() }).where(eq(users.id, session.userId))
+    const [existing] = await db.select({ userId: userProfiles.userId }).from(userProfiles).where(eq(userProfiles.userId, session.userId)).limit(1)
+    const [profile] = existing
+      ? await db.update(userProfiles).set({ ...fields, updatedAt: new Date() }).where(eq(userProfiles.userId, session.userId)).returning()
+      : await db.insert(userProfiles).values({ userId: session.userId, ...fields }).returning()
+
+    return res.json({ user: { id: session.userId, displayName }, profile })
+  } catch {
+    return res.status(500).json({ error: 'Unable to update profile' })
+  }
+})
+
+authRoutes.post('/change-password', async (req, res) => {
+  try {
+    const token = readCookie(req, SESSION_COOKIE_NAME)
+    if (!token) return res.status(401).json({ error: 'Authentication required' })
+    const [session] = await db.select({ userId: userSessions.userId })
+      .from(userSessions)
+      .where(and(eq(userSessions.tokenHash, hashSessionToken(token)), isNull(userSessions.revokedAt), gt(userSessions.expiresAt, new Date())))
+      .limit(1)
+    if (!session) return res.status(401).json({ error: 'Authentication required' })
+
+    const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : ''
+    const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : ''
+    if (!currentPassword || newPassword.length < 8) return res.status(400).json({ error: 'Current password and a new password of at least 8 characters are required' })
+
+    const [credential] = await db.select({ passwordHash: userCredentials.passwordHash }).from(userCredentials).where(eq(userCredentials.userId, session.userId)).limit(1)
+    if (!credential || !(await verifyPassword(currentPassword, credential.passwordHash))) return res.status(400).json({ error: 'Current password is incorrect' })
+
+    const passwordHash = await hashPassword(newPassword)
+    await db.update(userCredentials).set({ passwordHash, passwordUpdatedAt: new Date(), updatedAt: new Date() }).where(eq(userCredentials.userId, session.userId))
+    await db.update(userSessions).set({ revokedAt: new Date() }).where(and(eq(userSessions.userId, session.userId), isNull(userSessions.revokedAt)))
+    const newToken = createSessionToken()
+    await db.insert(userSessions).values({ userId: session.userId, tokenHash: hashSessionToken(newToken), expiresAt: sessionExpiry() })
+    res.cookie(SESSION_COOKIE_NAME, newToken, sessionCookieOptions())
+    return res.status(204).end()
+  } catch {
+    return res.status(500).json({ error: 'Unable to change password' })
   }
 })
 
