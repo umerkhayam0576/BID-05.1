@@ -4,7 +4,7 @@ import { and, desc, eq, isNull, or, inArray } from 'drizzle-orm'
 import { db } from '../db'
 import { getAuthenticatedUserId, getMembership, requireWorkspaceMembership, requireWorkspaceRole } from '../auth/middleware'
 import { hashSessionToken, normalizeEmail } from '../auth/service'
-import { attendanceRecords, clients, employees, memberships, notifications, projects, projectAccess, reminders, salesActivities, salesLeads, workspaceInvitations } from '../db/app-schema'
+import { attendanceRecords, clients, employees, memberships, notifications, projects, projectAccess, reminders, salesActivities, salesLeads, workspaceInvitations, users } from '../db/app-schema'
 
 export const workspaceRoutes = Router()
 
@@ -157,6 +157,145 @@ workspaceRoutes.post('/invitations/:id/withdraw', async (req, res) => {
   } catch (error: any) {
     const status = error?.status === 403 ? 403 : 500
     return res.status(status).json({ error: error.message || 'Failed to withdraw workspace invitation' })
+  }
+})
+
+workspaceRoutes.post('/invitations/:id/accept', async (req, res) => {
+  try {
+    const userId = getAuthenticatedUserId(req)
+    const token = typeof req.body?.token === 'string' ? req.body.token.trim() : ''
+    if (!token) return res.status(400).json({ error: 'Invitation token is required' })
+
+    const tokenHash = hashSessionToken(token)
+    const [invitation] = await db.select({
+      id: workspaceInvitations.id,
+      workspaceId: workspaceInvitations.workspaceId,
+      email: workspaceInvitations.email,
+      role: workspaceInvitations.role,
+      name: workspaceInvitations.name,
+      status: workspaceInvitations.status,
+      expiresAt: workspaceInvitations.expiresAt,
+    })
+      .from(workspaceInvitations)
+      .where(and(
+        eq(workspaceInvitations.id, req.params.id),
+        eq(workspaceInvitations.tokenHash, tokenHash)
+      ))
+      .limit(1)
+
+    if (!invitation) return res.status(404).json({ error: 'Invitation not found' })
+    if (invitation.status !== 'pending') {
+      return res.status(409).json({ error: `Invitation is already ${invitation.status}` })
+    }
+    if (invitation.expiresAt <= new Date()) {
+      await db.update(workspaceInvitations)
+        .set({ status: 'expired' })
+        .where(and(eq(workspaceInvitations.id, invitation.id), eq(workspaceInvitations.status, 'pending')))
+      return res.status(410).json({ error: 'Invitation has expired' })
+    }
+    if (!['employee', 'client'].includes(invitation.role)) {
+      return res.status(400).json({ error: 'Unsupported invitation role' })
+    }
+
+    const [user] = await db.select({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      status: users.status,
+    })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+
+    if (!user) return res.status(404).json({ error: 'User account not found' })
+    if (user.status !== 'active') return res.status(403).json({ error: 'User account is inactive' })
+    if (normalizeEmail(user.email) !== invitation.email) {
+      return res.status(403).json({ error: 'This invitation was issued to a different email address' })
+    }
+
+    const [existingMembership] = await db.select({ id: memberships.id, role: memberships.role, status: memberships.status })
+      .from(memberships)
+      .where(and(
+        eq(memberships.workspaceId, invitation.workspaceId),
+        eq(memberships.userId, userId)
+      ))
+      .limit(1)
+
+    if (existingMembership) {
+      return res.status(409).json({ error: 'User is already associated with this workspace' })
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.insert(memberships).values({
+        workspaceId: invitation.workspaceId,
+        userId,
+        role: invitation.role,
+        status: 'active',
+      })
+
+      if (invitation.role === 'employee') {
+        const [existingEmployee] = await tx.select({ id: employees.id })
+          .from(employees)
+          .where(and(
+            eq(employees.workspaceId, invitation.workspaceId),
+            eq(employees.email, invitation.email)
+          ))
+          .limit(1)
+
+        if (existingEmployee) {
+          await tx.update(employees)
+            .set({ userId, name: invitation.name || user.displayName, status: 'active' })
+            .where(eq(employees.id, existingEmployee.id))
+        } else {
+          await tx.insert(employees).values({
+            workspaceId: invitation.workspaceId,
+            userId,
+            name: invitation.name || user.displayName,
+            email: invitation.email,
+            status: 'active',
+          })
+        }
+      } else {
+        const [existingClient] = await tx.select({ id: clients.id })
+          .from(clients)
+          .where(and(
+            eq(clients.workspaceId, invitation.workspaceId),
+            eq(clients.email, invitation.email)
+          ))
+          .limit(1)
+
+        if (!existingClient) {
+          await tx.insert(clients).values({
+            workspaceId: invitation.workspaceId,
+            name: invitation.name || user.displayName,
+            email: invitation.email,
+            status: 'active',
+          })
+        }
+      }
+
+      await tx.update(workspaceInvitations)
+        .set({
+          status: 'accepted',
+          acceptedByUserId: userId,
+          acceptedAt: new Date(),
+        })
+        .where(and(
+          eq(workspaceInvitations.id, invitation.id),
+          eq(workspaceInvitations.tokenHash, tokenHash),
+          eq(workspaceInvitations.status, 'pending')
+        ))
+    })
+
+    return res.status(201).json({
+      accepted: true,
+      workspaceId: invitation.workspaceId,
+      role: invitation.role,
+      message: 'Invitation accepted. Project access must be assigned separately.'
+    })
+  } catch (error: any) {
+    const status = error?.status === 403 ? 403 : 500
+    return res.status(status).json({ error: error.message || 'Failed to accept workspace invitation' })
   }
 })
 
