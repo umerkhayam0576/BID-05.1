@@ -321,38 +321,45 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
           </div>
         </div>
 
-        {/* 2. DEDICATED CORPORATE TAB NAVIGATION */}
-        <div className="flex items-center gap-1 pt-4 border-t border-[#222a3d]/70 mt-4 overflow-x-auto no-scrollbar">
-          {[
-            { id: 'overview', label: 'Company Overview & KPI Matrix', icon: 'monitoring' },
-            { id: 'cap-table', label: 'Ownership & Cap Table', icon: 'pie_chart' },
-            { id: 'p-and-l', label: 'Corporate P&L & Treasury', icon: 'account_balance' },
-            { id: 'distributions', label: 'Distribution Ledger & Wires', icon: 'payments' },
-            { id: 'governance', label: 'Governance & Resolutions', icon: 'gavel' },
-            { id: 'projects', label: 'Commercial Pipeline & Contracts', icon: 'work' },
-            { id: 'documents', label: 'Corporate Documents & Vault', icon: 'description' },
-            { id: 'ownership-legal', label: 'Ownership & Legal', icon: 'gavel' },
-            { id: 'people', label: 'People & Access', icon: 'group' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id as CompanyTabId)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-xs font-mono transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-[#131b2e] text-[#4edea3] font-bold border border-[#4edea3]/40 shadow-sm'
-                  : 'text-[#bbcabf] hover:bg-[#131b2e]/60 hover:text-[#dae2fd]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-sm">{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
+        {/* Company navigation is rendered in the persistent left rail below. */}
       </header>
 
       {/* 3. DEDICATED MAIN CONTENT SURFACE (ONLY THIS COMPANY) */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
+      <main className="flex-1 w-full min-w-0 flex flex-col lg:flex-row">
+
+        <aside className="lg:sticky lg:top-0 lg:self-start lg:h-[calc(100vh-180px)] lg:w-64 shrink-0 border-b lg:border-b-0 lg:border-r border-[#222a3d] bg-[#0b1326] p-3 lg:p-4 overflow-x-auto lg:overflow-y-auto">
+          <div className="mb-3 px-2 font-mono text-[10px] font-bold text-[#bbcabf] uppercase tracking-wider">
+            Company Navigation
+          </div>
+          <nav className="flex lg:flex-col gap-1 min-w-max lg:min-w-0">
+            {[
+              { id: 'overview', label: 'Company Overview', icon: 'monitoring' },
+              { id: 'cap-table', label: 'Ownership & Cap Table', icon: 'pie_chart' },
+              { id: 'p-and-l', label: 'Corporate P&L & Treasury', icon: 'account_balance' },
+              { id: 'distributions', label: 'Distribution Ledger & Wires', icon: 'payments' },
+              { id: 'governance', label: 'Governance & Resolutions', icon: 'gavel' },
+              { id: 'projects', label: 'Commercial Pipeline & Contracts', icon: 'work' },
+              { id: 'documents', label: 'Corporate Documents & Vault', icon: 'description' },
+              { id: 'people', label: 'People & Access', icon: 'group' },
+              { id: 'ownership-legal', label: 'Ownership & Legal', icon: 'gavel' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as CompanyTabId)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-xs font-mono transition-all text-left cursor-pointer whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-[#4edea3]/10 text-[#4edea3] font-bold border border-[#4edea3]/40 shadow-sm'
+                    : 'text-[#bbcabf] hover:bg-[#131b2e] hover:text-[#dae2fd] border border-transparent'
+                }`}
+              >
+                <span className="material-symbols-outlined text-sm shrink-0">{tab.icon}</span>
+                <span className="truncate">{tab.label}</span>
+              </button>
+            ))}
+          </nav>
+        </aside>
+        <div className="flex-1 min-w-0 max-w-7xl mx-auto w-full p-4 lg:p-8 space-y-6">
         {/* TAB: PEOPLE & ACCESS */}
         {activeTab === 'people' && (
           <PeopleManagement
@@ -1521,6 +1528,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
             </div>
           </div>
         )}
+        </div>
       </main>
 
       {/* MODAL 1: ADD SHAREHOLDER TO CAP TABLE */}
