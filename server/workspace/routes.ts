@@ -127,7 +127,7 @@ workspaceRoutes.post('/invitations', async (req, res) => {
   }
 })
 
-workspaceRoutes.post('/invitations/:id/cancel', async (req, res) => {
+workspaceRoutes.post('/invitations/:id/withdraw', async (req, res) => {
   try {
     const workspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : ''
     if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' })
@@ -146,16 +146,17 @@ workspaceRoutes.post('/invitations/:id/cancel', async (req, res) => {
     if (!invitation) return res.status(404).json({ error: 'Pending invitation not found' })
 
     await db.update(workspaceInvitations)
-      .set({ status: 'cancelled' })
+      .set({ status: 'withdrawn' })
       .where(and(
         eq(workspaceInvitations.id, invitation.id),
-        eq(workspaceInvitations.workspaceId, workspaceId)
+        eq(workspaceInvitations.workspaceId, workspaceId),
+        eq(workspaceInvitations.status, 'pending')
       ))
 
     return res.status(204).end()
   } catch (error: any) {
     const status = error?.status === 403 ? 403 : 500
-    return res.status(status).json({ error: error.message || 'Failed to cancel workspace invitation' })
+    return res.status(status).json({ error: error.message || 'Failed to withdraw workspace invitation' })
   }
 })
 
