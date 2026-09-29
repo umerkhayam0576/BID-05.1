@@ -90,6 +90,8 @@ workspaceRoutes.post('/invitations', async (req, res) => {
     const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
     const role = typeof req.body?.role === 'string' ? req.body.role.trim().toLowerCase() : ''
+    const department = typeof req.body?.department === 'string' ? req.body.department.trim().toLowerCase() : ''
+    const portalRole = typeof req.body?.portalRole === 'string' ? req.body.portalRole.trim().toLowerCase() : ''
 
     if (!workspaceId || !email || !role) {
       return res.status(400).json({ error: 'workspaceId, email, and role are required' })
@@ -212,6 +214,8 @@ workspaceRoutes.post('/invitations/:id/accept', async (req, res) => {
       workspaceId: workspaceInvitations.workspaceId,
       email: workspaceInvitations.email,
       role: workspaceInvitations.role,
+      department: workspaceInvitations.department,
+      portalRole: workspaceInvitations.portalRole,
       name: workspaceInvitations.name,
       status: workspaceInvitations.status,
       expiresAt: workspaceInvitations.expiresAt,
