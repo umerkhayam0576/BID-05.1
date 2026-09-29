@@ -21,8 +21,15 @@ workspaceRoutes.get('/memberships', async (req, res) => {
       workspaceId: memberships.workspaceId,
       role: memberships.role,
       status: memberships.status,
+      department: employees.department,
+      portalRole: employees.portalRole,
     })
       .from(memberships)
+      .leftJoin(employees, and(
+        eq(employees.workspaceId, memberships.workspaceId),
+        eq(employees.userId, memberships.userId),
+        eq(employees.status, 'active')
+      ))
       .where(and(
         eq(memberships.userId, userId),
         eq(memberships.status, 'active')
@@ -57,6 +64,8 @@ workspaceRoutes.get('/invitations', async (req, res) => {
       workspaceId: workspaceInvitations.workspaceId,
       email: workspaceInvitations.email,
       role: workspaceInvitations.role,
+      department: workspaceInvitations.department,
+      portalRole: workspaceInvitations.portalRole,
       name: workspaceInvitations.name,
       status: workspaceInvitations.status,
       expiresAt: workspaceInvitations.expiresAt,
@@ -87,6 +96,13 @@ workspaceRoutes.post('/invitations', async (req, res) => {
     }
     if (!['employee', 'client'].includes(role)) {
       return res.status(400).json({ error: 'Invitation role must be employee or client' })
+    }
+    if (role === 'employee') {
+      const validPortalRoles = ['finance', 'hr', 'sales', 'services', 'manager']
+      if (!portalRole || !validPortalRoles.includes(portalRole)) {
+        return res.status(400).json({ error: 'Employee portalRole must be finance, hr, sales, services, or manager' })
+      }
+      if (!department) return res.status(400).json({ error: 'Employee department is required' })
     }
     if (!email.includes('@') || email.length > 320) {
       return res.status(400).json({ error: 'A valid email address is required' })
@@ -121,6 +137,8 @@ workspaceRoutes.post('/invitations', async (req, res) => {
       invitedByUserId,
       email,
       role,
+      department: role === 'employee' ? department : null,
+      portalRole: role === 'employee' ? portalRole : null,
       name: name || null,
       tokenHash,
       status: 'pending',
@@ -130,6 +148,8 @@ workspaceRoutes.post('/invitations', async (req, res) => {
       workspaceId: workspaceInvitations.workspaceId,
       email: workspaceInvitations.email,
       role: workspaceInvitations.role,
+      department: workspaceInvitations.department,
+      portalRole: workspaceInvitations.portalRole,
       name: workspaceInvitations.name,
       status: workspaceInvitations.status,
       expiresAt: workspaceInvitations.expiresAt,
@@ -264,13 +284,21 @@ workspaceRoutes.post('/invitations/:id/accept', async (req, res) => {
 
         if (existingEmployee) {
           await tx.update(employees)
-            .set({ userId, name: invitation.name || user.displayName, status: 'active' })
+            .set({
+              userId,
+              name: invitation.name || user.displayName,
+              department: invitation.department,
+              portalRole: invitation.portalRole || 'services',
+              status: 'active'
+            })
             .where(eq(employees.id, existingEmployee.id))
         } else {
           await tx.insert(employees).values({
             workspaceId: invitation.workspaceId,
             userId,
             name: invitation.name || user.displayName,
+            department: invitation.department,
+            portalRole: invitation.portalRole || 'services',
             email: invitation.email,
             status: 'active',
           })
