@@ -60,6 +60,7 @@ authRoutes.get('/invitations/preview', async (req, res) => {
     return res.json({
       valid: true,
       invitation: {
+        id: invitation.id,
         companyName: invitation.companyName,
         email: invitation.email,
         role: invitation.role,
