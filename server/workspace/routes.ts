@@ -1,8 +1,10 @@
 import { Router } from 'express'
+import { randomBytes } from 'crypto'
 import { and, desc, eq, isNull, or, inArray } from 'drizzle-orm'
 import { db } from '../db'
 import { getAuthenticatedUserId, getMembership, requireWorkspaceMembership, requireWorkspaceRole } from '../auth/middleware'
-import { attendanceRecords, clients, employees, memberships, notifications, projects, projectAccess, reminders, salesActivities, salesLeads } from '../db/app-schema'
+import { hashSessionToken, normalizeEmail } from '../auth/service'
+import { attendanceRecords, clients, employees, memberships, notifications, projects, projectAccess, reminders, salesActivities, salesLeads, workspaceInvitations } from '../db/app-schema'
 
 export const workspaceRoutes = Router()
 
@@ -20,6 +22,148 @@ workspaceRoutes.get('/context/:workspaceId', async (req, res) => {
     res.json({ workspaceId: membership.workspaceId, userId: membership.userId, role: membership.role })
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Failed to resolve workspace context' })
+  }
+})
+
+workspaceRoutes.get('/invitations', async (req, res) => {
+  try {
+    const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId.trim() : ''
+    if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' })
+
+    await requireWorkspaceRole(req, workspaceId, ['owner', 'admin', 'manager', 'hr', 'sales'])
+
+    const rows = await db.select({
+      id: workspaceInvitations.id,
+      workspaceId: workspaceInvitations.workspaceId,
+      email: workspaceInvitations.email,
+      role: workspaceInvitations.role,
+      name: workspaceInvitations.name,
+      status: workspaceInvitations.status,
+      expiresAt: workspaceInvitations.expiresAt,
+      acceptedByUserId: workspaceInvitations.acceptedByUserId,
+      acceptedAt: workspaceInvitations.acceptedAt,
+      createdAt: workspaceInvitations.createdAt,
+    })
+      .from(workspaceInvitations)
+      .where(eq(workspaceInvitations.workspaceId, workspaceId))
+      .orderBy(desc(workspaceInvitations.createdAt))
+
+    return res.json({ invitations: rows })
+  } catch (error: any) {
+    const status = error?.status === 403 ? 403 : 500
+    return res.status(status).json({ error: error.message || 'Failed to fetch workspace invitations' })
+  }
+})
+
+workspaceRoutes.post('/invitations', async (req, res) => {
+  try {
+    const workspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : ''
+    const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+    const role = typeof req.body?.role === 'string' ? req.body.role.trim().toLowerCase() : ''
+
+    if (!workspaceId || !email || !role) {
+      return res.status(400).json({ error: 'workspaceId, email, and role are required' })
+    }
+    if (!['employee', 'client'].includes(role)) {
+      return res.status(400).json({ error: 'Invitation role must be employee or client' })
+    }
+    if (!email.includes('@') || email.length > 320) {
+      return res.status(400).json({ error: 'A valid email address is required' })
+    }
+
+    const allowedRoles = role === 'employee'
+      ? ['owner', 'admin', 'manager', 'hr'] as const
+      : ['owner', 'admin', 'manager', 'sales'] as const
+    await requireWorkspaceRole(req, workspaceId, [...allowedRoles])
+
+    const [existingPending] = await db.select({ id: workspaceInvitations.id })
+      .from(workspaceInvitations)
+      .where(and(
+        eq(workspaceInvitations.workspaceId, workspaceId),
+        eq(workspaceInvitations.email, email),
+        eq(workspaceInvitations.role, role),
+        eq(workspaceInvitations.status, 'pending')
+      ))
+      .limit(1)
+
+    if (existingPending) {
+      return res.status(409).json({ error: 'A pending invitation already exists for this email and role' })
+    }
+
+    const [existingMembership] = await db.select({ id: memberships.id })
+      .from(memberships)
+      .where(and(
+        eq(memberships.workspaceId, workspaceId),
+        eq(memberships.status, 'active')
+      ))
+      .limit(1)
+
+    const token = randomBytes(32).toString('hex')
+    const tokenHash = hashSessionToken(token)
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    const invitedByUserId = getAuthenticatedUserId(req)
+
+    const [invitation] = await db.insert(workspaceInvitations).values({
+      workspaceId,
+      invitedByUserId,
+      email,
+      role,
+      name: name || null,
+      tokenHash,
+      status: 'pending',
+      expiresAt,
+    }).returning({
+      id: workspaceInvitations.id,
+      workspaceId: workspaceInvitations.workspaceId,
+      email: workspaceInvitations.email,
+      role: workspaceInvitations.role,
+      name: workspaceInvitations.name,
+      status: workspaceInvitations.status,
+      expiresAt: workspaceInvitations.expiresAt,
+      createdAt: workspaceInvitations.createdAt,
+    })
+
+    return res.status(201).json({
+      invitation,
+      inviteToken: token,
+      note: 'The raw invitation token is returned once for the upcoming email-delivery integration.'
+    })
+  } catch (error: any) {
+    const status = error?.status === 403 ? 403 : 500
+    return res.status(status).json({ error: error.message || 'Failed to create workspace invitation' })
+  }
+})
+
+workspaceRoutes.post('/invitations/:id/cancel', async (req, res) => {
+  try {
+    const workspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : ''
+    if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' })
+
+    await requireWorkspaceRole(req, workspaceId, ['owner', 'admin', 'manager', 'hr', 'sales'])
+
+    const [invitation] = await db.select({ id: workspaceInvitations.id })
+      .from(workspaceInvitations)
+      .where(and(
+        eq(workspaceInvitations.id, req.params.id),
+        eq(workspaceInvitations.workspaceId, workspaceId),
+        eq(workspaceInvitations.status, 'pending')
+      ))
+      .limit(1)
+
+    if (!invitation) return res.status(404).json({ error: 'Pending invitation not found' })
+
+    await db.update(workspaceInvitations)
+      .set({ status: 'cancelled' })
+      .where(and(
+        eq(workspaceInvitations.id, invitation.id),
+        eq(workspaceInvitations.workspaceId, workspaceId)
+      ))
+
+    return res.status(204).end()
+  } catch (error: any) {
+    const status = error?.status === 403 ? 403 : 500
+    return res.status(status).json({ error: error.message || 'Failed to cancel workspace invitation' })
   }
 })
 
