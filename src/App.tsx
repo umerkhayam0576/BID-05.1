@@ -97,45 +97,6 @@ import { CommandPaletteModal } from './components/CommandPaletteModal';
 type AuthUser = { id: string; email: string; displayName: string | null };
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
-  const [employeePortalRole, setEmployeePortalRole] = useState<PortalRole | null | undefined>(undefined);
-  const employeeOnly = employeePortalRole !== null && employeePortalRole !== undefined;
-
-  useEffect(() => {
-    let cancelled = false;
-    const resolvePortalAccess = async () => {
-      try {
-        const response = await fetch('/api/workspace/memberships', { credentials: 'include' });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || 'Unable to resolve portal access');
-        const memberships = Array.isArray(payload.memberships) ? payload.memberships : [];
-        const employeeMembership = memberships.find((membership: any) => membership.role === 'employee');
-        if (!cancelled) {
-          const role = employeeMembership?.portalRole;
-          setEmployeePortalRole(['finance', 'hr', 'sales', 'services', 'manager'].includes(role) ? role : employeeMembership ? 'services' : null);
-        }
-      } catch {
-        if (!cancelled) setEmployeePortalRole(null);
-      }
-    };
-    resolvePortalAccess();
-    return () => { cancelled = true; };
-  }, []);
-
-  if (employeePortalRole === undefined) {
-    return (
-      <div className="min-h-screen bg-[#080d18] text-[#dae2fd] flex items-center justify-center">
-        <div className="rounded-2xl border border-[#222a3d] bg-[#0d1728] px-8 py-7 text-center">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-[#4edea3]">Secure portal</p>
-          <h1 className="mt-2 text-lg font-semibold text-white">Checking your access…</h1>
-        </div>
-      </div>
-    );
-  }
-
-  if (employeeOnly) {
-    return employeePortalRole === 'services' ? <EmployeePortalView /> : <EmployeeRolePortal portalRole={employeePortalRole!} />;
-  }
-
   // Workspace state: personal finance is the default landing workspace for authenticated users.
   const [activeWorkspace, setActiveWorkspace] = useState<'personal-finance' | 'pre-con-estimating'>(() => {
     const saved = localStorage.getItem('bid_exact_active_workspace');
@@ -400,6 +361,55 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   // Toast / notification count
   const [notificationCount, setNotificationCount] = useState(2);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Resolve the employee's dedicated portal before rendering any corporate workspace UI.
+  // This hook must remain alongside the other hooks so React's hook order never changes.
+  const [employeePortalRole, setEmployeePortalRole] = useState<PortalRole | null | undefined>(undefined);
+  const employeeOnly = employeePortalRole !== null && employeePortalRole !== undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolvePortalAccess = async () => {
+      try {
+        const response = await fetch('/api/workspace/memberships', { credentials: 'include' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'Unable to resolve portal access');
+        const memberships = Array.isArray(payload.memberships) ? payload.memberships : [];
+        const employeeMembership = memberships.find((membership: any) => membership.role === 'employee');
+        if (!cancelled) {
+          const role = employeeMembership?.portalRole;
+          setEmployeePortalRole(
+            ['finance', 'hr', 'sales', 'services', 'manager'].includes(role)
+              ? role
+              : employeeMembership
+                ? 'services'
+                : null
+          );
+        }
+      } catch {
+        if (!cancelled) setEmployeePortalRole(null);
+      }
+    };
+    resolvePortalAccess();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (employeePortalRole === undefined) {
+    return (
+      <div className="min-h-screen bg-[#080d18] text-[#dae2fd] flex items-center justify-center">
+        <div className="rounded-2xl border border-[#222a3d] bg-[#0d1728] px-8 py-7 text-center">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-[#4edea3]">Secure portal</p>
+          <h1 className="mt-2 text-lg font-semibold text-white">Checking your access…</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (employeeOnly) {
+    return employeePortalRole === 'services'
+      ? <EmployeePortalView />
+      : <EmployeeRolePortal portalRole={employeePortalRole!} />;
+  }
 
   // Handlers
   const handleApplyDelta = (bidId: string, deltaAmount: number, deltaTons: number) => {
