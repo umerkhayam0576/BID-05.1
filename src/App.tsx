@@ -45,6 +45,7 @@ import { CompanyDetailView } from './components/views/CompanyDetailView';
 import { ClientPortalView } from './components/views/ClientPortalView';
 import { CompanyRemindersView } from './components/views/CompanyRemindersView';
 import { EmployeePortalView } from './components/views/EmployeePortalView';
+import { EmployeeRolePortal, type PortalRole } from './components/views/EmployeeRolePortal';
 import { ConnectedBanksView } from './components/views/ConnectedBanksView';
 import { StudioView } from './components/StudioView';
 
@@ -96,7 +97,8 @@ import { CommandPaletteModal } from './components/CommandPaletteModal';
 type AuthUser = { id: string; email: string; displayName: string | null };
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
-  const [employeeOnly, setEmployeeOnly] = useState<boolean | null>(null);
+  const [employeePortalRole, setEmployeePortalRole] = useState<PortalRole | null>(null);
+  const employeeOnly = employeePortalRole !== null;
 
   useEffect(() => {
     let cancelled = false;
@@ -106,9 +108,13 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || 'Unable to resolve portal access');
         const memberships = Array.isArray(payload.memberships) ? payload.memberships : [];
-        if (!cancelled) setEmployeeOnly(memberships.some((membership: any) => membership.role === 'employee'));
+        const employeeMembership = memberships.find((membership: any) => membership.role === 'employee');
+        if (!cancelled) {
+          const role = employeeMembership?.portalRole;
+          setEmployeePortalRole(['finance', 'hr', 'sales', 'services', 'manager'].includes(role) ? role : employeeMembership ? 'services' : null);
+        }
       } catch {
-        if (!cancelled) setEmployeeOnly(false);
+        if (!cancelled) setEmployeePortalRole(null);
       }
     };
     resolvePortalAccess();
@@ -127,7 +133,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   }
 
   if (employeeOnly) {
-    return <EmployeePortalView />;
+    return employeePortalRole === 'services' ? <EmployeePortalView /> : <EmployeeRolePortal portalRole={employeePortalRole!} />;
   }
 
   // Workspace state: personal finance is the default landing workspace for authenticated users.
