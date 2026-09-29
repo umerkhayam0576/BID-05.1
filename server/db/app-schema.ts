@@ -109,6 +109,23 @@ export const entityInvitations = pgTable('app_entity_invitations', {
   tokenUnique: unique('app_entity_invitations_token_unique').on(table.tokenHash),
 }))
 
+export const workspaceInvitations = pgTable('app_workspace_invitations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  invitedByUserId: text('invited_by_user_id').notNull(),
+  email: text('email').notNull(),
+  role: text('role').notNull(),
+  name: text('name'),
+  tokenHash: text('token_hash').notNull(),
+  status: text('status').default('pending').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  acceptedByUserId: text('accepted_by_user_id'),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+  createdAt: timestamps.createdAt,
+}, (table) => ({
+  tokenUnique: unique('app_workspace_invitations_token_unique').on(table.tokenHash),
+}));
+ 
 export const clients = pgTable('app_clients', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull(),
@@ -465,4 +482,4 @@ export const legalDocumentAuditLogs = pgTable('app_legal_document_audit_logs', {
   createdAt: timestamps.createdAt,
 })
 
-export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, ownershipHistory, ownershipChangeRequests, legalDocuments, legalDocumentVersions, agreements, agreementParties, agreementApprovals, agreementSignatures, legalDocumentAuditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, personalProperties }
+export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, workspaceInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, ownershipHistory, ownershipChangeRequests, legalDocuments, legalDocumentVersions, agreements, agreementParties, agreementApprovals, agreementSignatures, legalDocumentAuditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, personalProperties }
