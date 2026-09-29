@@ -53,6 +53,30 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [ownershipLoading, setOwnershipLoading] = useState(false);
   const [ownershipError, setOwnershipError] = useState<string | null>(null);
+  const [membershipRole, setMembershipRole] = useState<string | null>(null);
+  const [membershipLoading, setMembershipLoading] = useState(true);
+  const [membershipError, setMembershipError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadMembershipContext = async () => {
+      setMembershipLoading(true);
+      setMembershipError(null);
+      try {
+        if (!company.workspaceId) throw new Error('This company is not linked to a SaaS workspace yet.');
+        const response = await fetch(`/api/workspace/context/${company.workspaceId}`, { credentials: 'include' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'Unable to resolve company access');
+        if (!cancelled) setMembershipRole(payload.role || null);
+      } catch (error: any) {
+        if (!cancelled) setMembershipError(error?.message || 'Unable to resolve company access');
+      } finally {
+        if (!cancelled) setMembershipLoading(false);
+      }
+    };
+    loadMembershipContext();
+    return () => { cancelled = true; };
+  }, [company.workspaceId]);
 
   useEffect(() => {
     if (activeTab !== 'ownership-legal' || legalSection !== 'Ownership') return;
@@ -142,6 +166,19 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
     setNewMemberInvestment(25000);
     setIsAddMemberOpen(false);
   };
+
+  if (membershipLoading) {
+    return <div className="min-h-screen bg-[#060e20] text-[#dae2fd] flex items-center justify-center p-6"><div className="rounded-2xl border border-[#222a3d] bg-[#0d1728] p-8 text-center"><p className="text-xs font-mono uppercase tracking-widest text-[#4edea3]">Company access</p><h2 className="mt-2 text-xl font-semibold text-white">Checking your workspace permissions…</h2><p className="mt-2 text-sm text-[#86948a]">Please wait while we resolve your company role.</p></div></div>;
+  }
+
+  if (membershipError) {
+    return <div className="min-h-screen bg-[#060e20] text-[#dae2fd] flex items-center justify-center p-6"><div className="max-w-lg rounded-2xl border border-red-400/20 bg-[#0d1728] p-8 text-center"><p className="text-xs font-mono uppercase tracking-widest text-red-300">Access check failed</p><h2 className="mt-2 text-xl font-semibold text-white">Company workspace unavailable</h2><p className="mt-2 text-sm text-[#86948a]">{membershipError}</p><button type="button" onClick={onReturnToConsolidated} className="mt-6 rounded-lg border border-[#2b3851] px-4 py-2 text-xs font-semibold text-white">Return to Personal Wealth Hub</button></div></div>;
+  }
+
+  if (membershipRole === 'employee' || membershipRole === 'client') {
+    const isEmployee = membershipRole === 'employee';
+    return <div className="min-h-screen bg-[#060e20] text-[#dae2fd] flex flex-col antialiased"><header className="border-b border-[#222a3d] bg-[#060e20]/95 px-5 py-4 shadow-lg"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#4edea3]">{isEmployee ? 'Employee workspace' : 'Client workspace'}</p><h1 className="mt-1 text-xl font-semibold text-white">{company.name}</h1><p className="mt-1 text-xs text-[#86948a]">{isEmployee ? 'Only assigned work will be available here.' : 'Only your assigned projects and client information will be available here.'}</p></div><button type="button" onClick={onReturnToConsolidated} className="rounded-lg border border-[#2b3851] px-4 py-2 text-xs font-semibold text-white">Return to Personal Wealth Hub</button></div></header><main className="flex-1 p-6 lg:p-10"><div className="mx-auto max-w-4xl rounded-2xl border border-[#222a3d] bg-[#0d1728] p-8 shadow-xl"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#4edea3]/10 text-[#4edea3]"><span className="material-symbols-outlined">{isEmployee ? 'badge' : 'business'}</span></div><h2 className="mt-5 text-2xl font-semibold text-white">{isEmployee ? 'Employee access is active' : 'Client access is active'}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#9aa7ba]">Your account is connected to this company, but company administration, ownership, finance, internal people data, and unassigned projects are restricted. Project access will be granted separately by an authorized company user.</p><div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-[#222a3d] bg-[#0a1220] p-4"><p className="text-[10px] uppercase tracking-wider text-[#667085]">Role</p><p className="mt-1 text-sm font-semibold capitalize text-white">{membershipRole}</p></div><div className="rounded-xl border border-[#222a3d] bg-[#0a1220] p-4"><p className="text-[10px] uppercase tracking-wider text-[#667085]">Project access</p><p className="mt-1 text-sm font-semibold text-[#f0b44d]">Assigned separately</p></div></div></div></main></div>;
+  }
 
   return (
     <div className="min-h-screen bg-[#060e20] text-[#dae2fd] flex flex-col antialiased selection:bg-[#4edea3]/25 selection:text-[#4edea3]">
