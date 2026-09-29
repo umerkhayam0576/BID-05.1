@@ -12,6 +12,8 @@ interface Invitation {
   email: string;
   role: PersonType;
   name?: string | null;
+  department?: string | null;
+  portalRole?: string | null;
   status: string;
   expiresAt: string;
   createdAt: string;
@@ -26,6 +28,8 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
   const [successToken, setSuccessToken] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [department, setDepartment] = useState('services');
+  const [portalRole, setPortalRole] = useState('services');
 
   const loadInvitations = async () => {
     if (!workspaceId) return;
@@ -68,6 +72,8 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
           email: email.trim(),
           name: name.trim() || undefined,
           role: personType,
+          department: personType === 'employee' ? department : undefined,
+          portalRole: personType === 'employee' ? portalRole : undefined,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -76,6 +82,8 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
       setSuccessToken(payload.inviteToken || null);
       setName('');
       setEmail('');
+      setDepartment('services');
+      setPortalRole('services');
       await loadInvitations();
     } catch (err: any) {
       setError(err?.message || 'Unable to create invitation');
@@ -130,7 +138,7 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
             <button
               key={type}
               type="button"
-              onClick={() => { setPersonType(type); setSuccessToken(null); setError(null); }}
+              onClick={() => { setPersonType(type); setSuccessToken(null); setError(null); if (type === 'employee') { setDepartment('services'); setPortalRole('services'); } }}
               className={`px-4 py-2 rounded-md text-xs font-mono font-bold border transition-colors ${
                 personType === type
                   ? 'bg-[#4edea3]/10 border-[#4edea3]/50 text-[#4edea3]'
@@ -178,6 +186,31 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
             />
           </label>
 
+          {personType === 'employee' && (
+            <>
+              <label className="block">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#bbcabf]">Department</span>
+                <select value={department} onChange={(e) => setDepartment(e.target.value)} className="mt-1.5 w-full rounded-md bg-[#0b1326] border border-[#222a3d] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]/60">
+                  <option value="finance">Finance / Accounting</option>
+                  <option value="hr">Human Resources</option>
+                  <option value="sales">Sales</option>
+                  <option value="services">Services</option>
+                  <option value="management">Management</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#bbcabf]">Employee Portal</span>
+                <select value={portalRole} onChange={(e) => setPortalRole(e.target.value)} className="mt-1.5 w-full rounded-md bg-[#0b1326] border border-[#222a3d] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]/60">
+                  <option value="finance">Finance Employee Portal</option>
+                  <option value="hr">HR Employee Portal</option>
+                  <option value="sales">Sales Employee Portal</option>
+                  <option value="services">Services Employee Portal</option>
+                  <option value="manager">Manager Portal</option>
+                </select>
+              </label>
+            </>
+          )}
+
           <label className="block">
             <span className="text-[10px] font-mono uppercase tracking-wider text-[#bbcabf]">Email</span>
             <input
@@ -222,7 +255,7 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
                     <div className="text-sm font-semibold text-[#dae2fd] truncate">{invitation.name || invitation.email}</div>
                     <div className="text-xs font-mono text-[#bbcabf] truncate">{invitation.email}</div>
                     <div className="text-[10px] font-mono text-[#86948a] mt-1">
-                      Expires {new Date(invitation.expiresAt).toLocaleDateString()}
+                      {invitation.role === 'employee' ? `${invitation.department || 'services'} · ${invitation.portalRole || 'services'} portal · ` : ''}Expires {new Date(invitation.expiresAt).toLocaleDateString()}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
