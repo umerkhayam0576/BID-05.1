@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import { db } from '../db'
-import { users, userCredentials, userSessions, userProfiles } from '../db/app-schema'
+import { users, userCredentials, userSessions, userProfiles, workspaces, workspaceInvitations } from '../db/app-schema'
 import {
   createSessionToken,
   hashPassword,
@@ -22,6 +22,54 @@ function readCookie(req: Request, name: string) {
 }
 
 export const authRoutes = Router()
+
+authRoutes.get('/invitations/preview', async (req, res) => {
+  try {
+    const token = typeof req.query.token === 'string' ? req.query.token.trim() : ''
+
+    if (!token) return res.status(400).json({ error: 'Invitation token is required' })
+
+    const tokenHash = hashSessionToken(token)
+    const [invitation] = await db
+      .select({
+        id: workspaceInvitations.id,
+        companyName: workspaces.name,
+        email: workspaceInvitations.email,
+        role: workspaceInvitations.role,
+        status: workspaceInvitations.status,
+        expiresAt: workspaceInvitations.expiresAt,
+      })
+      .from(workspaceInvitations)
+      .innerJoin(workspaces, eq(workspaces.id, workspaceInvitations.workspaceId))
+      .where(eq(workspaceInvitations.tokenHash, tokenHash))
+      .limit(1)
+
+    if (!invitation) return res.status(404).json({ error: 'Invitation not found or invalid' })
+
+    if (invitation.status !== 'pending') {
+      return res.status(409).json({ error: 'This invitation is no longer pending', status: invitation.status })
+    }
+
+    if (invitation.expiresAt <= new Date()) {
+      await db.update(workspaceInvitations)
+        .set({ status: 'expired' })
+        .where(and(eq(workspaceInvitations.id, invitation.id), eq(workspaceInvitations.status, 'pending')))
+      return res.status(410).json({ error: 'This invitation has expired' })
+    }
+
+    return res.json({
+      valid: true,
+      invitation: {
+        companyName: invitation.companyName,
+        email: invitation.email,
+        role: invitation.role,
+        expiresAt: invitation.expiresAt,
+      },
+    })
+  } catch {
+    return res.status(500).json({ error: 'Unable to preview invitation' })
+  }
+})
 
 authRoutes.post('/register', async (req, res) => {
   try {
