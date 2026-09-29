@@ -96,6 +96,40 @@ import { CommandPaletteModal } from './components/CommandPaletteModal';
 type AuthUser = { id: string; email: string; displayName: string | null };
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
+  const [employeeOnly, setEmployeeOnly] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolvePortalAccess = async () => {
+      try {
+        const response = await fetch('/api/workspace/memberships', { credentials: 'include' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || 'Unable to resolve portal access');
+        const memberships = Array.isArray(payload.memberships) ? payload.memberships : [];
+        if (!cancelled) setEmployeeOnly(memberships.some((membership: any) => membership.role === 'employee'));
+      } catch {
+        if (!cancelled) setEmployeeOnly(false);
+      }
+    };
+    resolvePortalAccess();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (employeeOnly === null) {
+    return (
+      <div className="min-h-screen bg-[#080d18] text-[#dae2fd] flex items-center justify-center">
+        <div className="rounded-2xl border border-[#222a3d] bg-[#0d1728] px-8 py-7 text-center">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-[#4edea3]">Secure portal</p>
+          <h1 className="mt-2 text-lg font-semibold text-white">Checking your access…</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (employeeOnly) {
+    return <EmployeePortalView />;
+  }
+
   // Workspace state: personal finance is the default landing workspace for authenticated users.
   const [activeWorkspace, setActiveWorkspace] = useState<'personal-finance' | 'pre-con-estimating'>(() => {
     const saved = localStorage.getItem('bid_exact_active_workspace');
