@@ -19,6 +19,7 @@ import { ProjectTrackingOperations } from './components/ProjectTrackingOperation
 import type { OutsourcedProjectAssignment } from './components/OutsourcedProjectModal';
 import { WorkflowAutomationHub } from './components/workflow/WorkflowAutomationHub';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { InvitationOnboarding } from './components/auth/InvitationOnboarding';
 
 // Dedicated Module Views
 import { OperationsOverviewView } from './components/views/OperationsOverviewView';
@@ -969,6 +970,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 }
 
 export default function App() {
+  const inviteToken = new URLSearchParams(window.location.search).get('invite');
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
   const handleLogout = async () => {
@@ -980,6 +982,9 @@ export default function App() {
   };
 
   if (!authUser) {
+    if (inviteToken) {
+      return <InvitationOnboarding token={inviteToken} onAuthenticated={setAuthUser} />;
+    }
     return <LoginScreen onAuthenticated={setAuthUser} />;
   }
 
