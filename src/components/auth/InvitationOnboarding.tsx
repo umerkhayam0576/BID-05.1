@@ -33,8 +33,8 @@ export function InvitationOnboarding({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const acceptInvitation = async (user: AuthUser) => {
-    const response = await fetch(`/api/workspace/invitations/${invitation?.id}/accept`, {
+  const acceptInvitation = async (user: AuthUser, invitationToAccept = invitation) => {
+    const response = await fetch(`/api/workspace/invitations/${invitationToAccept?.id}/accept`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -73,7 +73,7 @@ export function InvitationOnboarding({
         if (sessionResponse.ok) {
           const sessionData = await sessionResponse.json();
           setCheckingSession(false);
-          await acceptInvitation(sessionData.user);
+          await acceptInvitation(sessionData.user, preview.invitation);
           return;
         }
       } catch {
@@ -99,7 +99,7 @@ export function InvitationOnboarding({
         credentials: 'include',
         body:
           mode === 'login'
-            ? { email, password }
+            ? JSON.stringify({ email, password })
             : JSON.stringify({ displayName, email, password, phone, country }),
       });
 
