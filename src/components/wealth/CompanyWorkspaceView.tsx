@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CompanyEntity, LedgerEvent, CapTableMember } from '../../types/wealth';
 import { CompanyDataImportPanel } from '../views/CompanyDataImportPanel';
+import { PeopleManagement } from './PeopleManagement';
 
 interface CompanyWorkspaceViewProps {
   company: CompanyEntity;
@@ -25,7 +26,8 @@ type CompanyTabId =
   | 'governance'
   | 'projects'
   | 'documents'
-  | 'ownership-legal';
+  | 'ownership-legal'
+  | 'people';
 
 export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   company,
@@ -330,6 +332,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
             { id: 'projects', label: 'Commercial Pipeline & Contracts', icon: 'work' },
             { id: 'documents', label: 'Corporate Documents & Vault', icon: 'description' },
             { id: 'ownership-legal', label: 'Ownership & Legal', icon: 'gavel' },
+            { id: 'people', label: 'People & Access', icon: 'group' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -350,6 +353,14 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
 
       {/* 3. DEDICATED MAIN CONTENT SURFACE (ONLY THIS COMPANY) */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-8 space-y-6">
+        {/* TAB: PEOPLE & ACCESS */}
+        {activeTab === 'people' && (
+          <PeopleManagement
+            workspaceId={company.workspaceId}
+            companyName={company.name}
+          />
+        )}
+
         {/* TAB: OWNERSHIP & LEGAL */}
         {activeTab === 'ownership-legal' && (
           <div className="space-y-6">
