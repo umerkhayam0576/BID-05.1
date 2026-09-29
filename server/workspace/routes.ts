@@ -14,6 +14,26 @@ function requireUser(req: import('express').Request) {
 
 workspaceRoutes.use((_req, _res, next) => next())
 
+workspaceRoutes.get('/memberships', async (req, res) => {
+  try {
+    const userId = requireUser(req)
+    const rows = await db.select({
+      workspaceId: memberships.workspaceId,
+      role: memberships.role,
+      status: memberships.status,
+    })
+      .from(memberships)
+      .where(and(
+        eq(memberships.userId, userId),
+        eq(memberships.status, 'active')
+      ))
+
+    return res.json({ memberships: rows })
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Failed to fetch memberships' })
+  }
+})
+
 workspaceRoutes.get('/context/:workspaceId', async (req, res) => {
   try {
     const userId = requireUser(req)
