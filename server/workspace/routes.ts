@@ -91,14 +91,6 @@ workspaceRoutes.post('/invitations', async (req, res) => {
       return res.status(409).json({ error: 'A pending invitation already exists for this email and role' })
     }
 
-    const [existingMembership] = await db.select({ id: memberships.id })
-      .from(memberships)
-      .where(and(
-        eq(memberships.workspaceId, workspaceId),
-        eq(memberships.status, 'active')
-      ))
-      .limit(1)
-
     const token = randomBytes(32).toString('hex')
     const tokenHash = hashSessionToken(token)
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
