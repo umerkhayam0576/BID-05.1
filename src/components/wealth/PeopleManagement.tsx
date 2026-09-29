@@ -84,18 +84,18 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
     }
   };
 
-  const cancelInvitation = async (id: string) => {
+  const withdrawInvitation = async (id: string) => {
     if (!workspaceId) return;
     setError(null);
     try {
-      const response = await fetch(`/api/workspace/invitations/${id}/cancel`, {
+      const response = await fetch(`/api/workspace/invitations/${id}/withdraw`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error || 'Unable to cancel invitation');
+      if (!response.ok) throw new Error(payload.error || 'Unable to withdraw invitation');
       await loadInvitations();
     } catch (err: any) {
       setError(err?.message || 'Unable to cancel invitation');
@@ -231,6 +231,8 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
                         ? 'bg-[#adc6ff]/10 text-[#adc6ff] border border-[#adc6ff]/30'
                         : invitation.status === 'accepted'
                         ? 'bg-[#4edea3]/10 text-[#4edea3] border border-[#4edea3]/30'
+                        : invitation.status === 'withdrawn'
+                        ? 'bg-[#ffb2b7]/10 text-[#ffb2b7] border border-[#ffb2b7]/30'
                         : 'bg-[#222a3d] text-[#bbcabf] border border-[#222a3d]'
                     }`}>
                       {invitation.status}
@@ -238,7 +240,7 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
                     {invitation.status === 'pending' && (
                       <button
                         type="button"
-                        onClick={() => cancelInvitation(invitation.id)}
+                        onClick={() => withdrawInvitation(invitation.id)}
                         className="px-2.5 py-1.5 rounded border border-[#ffb2b7]/30 text-[#ffb2b7] hover:bg-[#ffb2b7]/10 text-[10px] font-mono font-bold"
                       >
                         Cancel
