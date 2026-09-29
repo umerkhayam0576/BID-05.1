@@ -97,8 +97,8 @@ import { CommandPaletteModal } from './components/CommandPaletteModal';
 type AuthUser = { id: string; email: string; displayName: string | null };
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
-  const [employeePortalRole, setEmployeePortalRole] = useState<PortalRole | null>(null);
-  const employeeOnly = employeePortalRole !== null;
+  const [employeePortalRole, setEmployeePortalRole] = useState<PortalRole | null | undefined>(undefined);
+  const employeeOnly = employeePortalRole !== null && employeePortalRole !== undefined;
 
   useEffect(() => {
     let cancelled = false;
@@ -121,7 +121,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     return () => { cancelled = true; };
   }, []);
 
-  if (employeeOnly === null) {
+  if (employeePortalRole === undefined) {
     return (
       <div className="min-h-screen bg-[#080d18] text-[#dae2fd] flex items-center justify-center">
         <div className="rounded-2xl border border-[#222a3d] bg-[#0d1728] px-8 py-7 text-center">
