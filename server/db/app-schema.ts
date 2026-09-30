@@ -485,4 +485,126 @@ export const legalDocumentAuditLogs = pgTable('app_legal_document_audit_logs', {
   createdAt: timestamps.createdAt,
 })
 
-export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, workspaceInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, ownershipHistory, ownershipChangeRequests, legalDocuments, legalDocumentVersions, agreements, agreementParties, agreementApprovals, agreementSignatures, legalDocumentAuditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, personalProperties }
+// Company finance is workspace-scoped and separate from personal finance.
+export const financeAccounts = pgTable('app_finance_accounts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  name: text('name').notNull(),
+  accountType: text('account_type').default('bank').notNull(),
+  currency: text('currency').default('USD').notNull(),
+  openingBalance: numeric('opening_balance', { precision: 14, scale: 2 }).default('0').notNull(),
+  currentBalance: numeric('current_balance', { precision: 14, scale: 2 }).default('0').notNull(),
+  status: text('status').default('active').notNull(),
+  metadata: jsonb('metadata').default({}).notNull(),
+  ...timestamps,
+})
+
+export const financeTransactions = pgTable('app_finance_transactions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  accountId: uuid('account_id').notNull(),
+  transactionType: text('transaction_type').notNull(),
+  category: text('category'),
+  description: text('description').notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  transactionDate: date('transaction_date').notNull(),
+  reference: text('reference'),
+  projectId: uuid('project_id'),
+  clientId: uuid('client_id'),
+  createdByUserId: text('created_by_user_id').notNull(),
+  status: text('status').default('posted').notNull(),
+  metadata: jsonb('metadata').default({}).notNull(),
+  ...timestamps,
+})
+
+export const financeExpenses = pgTable('app_finance_expenses', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  employeeUserId: text('employee_user_id'),
+  projectId: uuid('project_id'),
+  category: text('category').notNull(),
+  description: text('description').notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  currency: text('currency').default('USD').notNull(),
+  expenseDate: date('expense_date').notNull(),
+  receiptFilePath: text('receipt_file_path'),
+  status: text('status').default('submitted').notNull(),
+  approvedByUserId: text('approved_by_user_id'),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
+  notes: text('notes'),
+  ...timestamps,
+})
+
+export const financeInvoices = pgTable('app_finance_invoices', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  clientId: uuid('client_id'),
+  projectId: uuid('project_id'),
+  invoiceNumber: text('invoice_number').notNull(),
+  issueDate: date('issue_date').notNull(),
+  dueDate: date('due_date'),
+  subtotal: numeric('subtotal', { precision: 14, scale: 2 }).default('0').notNull(),
+  taxAmount: numeric('tax_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  totalAmount: numeric('total_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  paidAmount: numeric('paid_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  currency: text('currency').default('USD').notNull(),
+  status: text('status').default('draft').notNull(),
+  notes: text('notes'),
+  createdByUserId: text('created_by_user_id').notNull(),
+  ...timestamps,
+}, (table) => ({
+  invoiceNumberUnique: unique('app_finance_invoices_workspace_number_unique').on(table.workspaceId, table.invoiceNumber),
+}))
+
+export const financePayments = pgTable('app_finance_payments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  invoiceId: uuid('invoice_id'),
+  accountId: uuid('account_id'),
+  clientId: uuid('client_id'),
+  projectId: uuid('project_id'),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  currency: text('currency').default('USD').notNull(),
+  paymentDate: date('payment_date').notNull(),
+  paymentMethod: text('payment_method'),
+  reference: text('reference'),
+  status: text('status').default('pending').notNull(),
+  recordedByUserId: text('recorded_by_user_id').notNull(),
+  notes: text('notes'),
+  ...timestamps,
+})
+
+export const financeReconciliations = pgTable('app_finance_reconciliations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  accountId: uuid('account_id').notNull(),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  statementBalance: numeric('statement_balance', { precision: 14, scale: 2 }).default('0').notNull(),
+  systemBalance: numeric('system_balance', { precision: 14, scale: 2 }).default('0').notNull(),
+  difference: numeric('difference', { precision: 14, scale: 2 }).default('0').notNull(),
+  status: text('status').default('open').notNull(),
+  reconciledByUserId: text('reconciled_by_user_id'),
+  reconciledAt: timestamp('reconciled_at', { withTimezone: true }),
+  notes: text('notes'),
+  ...timestamps,
+})
+
+export const financeTasks = pgTable('app_finance_tasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  assignedToUserId: text('assigned_to_user_id'),
+  title: text('title').notNull(),
+  description: text('description'),
+  taskType: text('task_type').notNull(),
+  priority: text('priority').default('normal').notNull(),
+  status: text('status').default('pending').notNull(),
+  dueDate: date('due_date'),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdByUserId: text('created_by_user_id').notNull(),
+  ...timestamps,
+})
+
+
+export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, workspaceInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, financeAccounts, financeTransactions, financeExpenses, financeInvoices, financePayments, financeReconciliations, financeTasks, ownershipHistory, ownershipChangeRequests, legalDocuments, legalDocumentVersions, agreements, agreementParties, agreementApprovals, agreementSignatures, legalDocumentAuditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, personalProperties }
