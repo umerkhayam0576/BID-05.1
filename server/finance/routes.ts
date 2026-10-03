@@ -11,6 +11,10 @@ import {
   financePayments,
   financeReconciliations,
   financeTasks,
+  companyLoans,
+  companyLoanPayments,
+  personalLiabilities,
+  personalDebtPayments,
 } from '../db/app-schema'
 import { getAuthenticatedUserId, getMembership } from '../auth/middleware'
 import { getScope, getUserId, handleRouteError, money, positiveInteger, requiredText } from './validation'
@@ -688,6 +692,567 @@ router.post('/company/accounts', async (req, res) => {
 // ============================================================
 
 // ============================================================
+// COMPANY LOANS
+// ============================================================
+
+router.get('/company/loans', async (req, res) => {
+  try {
+    const workspaceId = workspaceIdFromRequest(req)
+    await requireCompanyFinanceAccess(req, workspaceId)
+
+    const rows = await db.select().from(companyLoans).where(
+      eq(companyLoans.workspaceId, workspaceId),
+    ).orderBy(desc(companyLoans.createdAt))
+
+    res.json(rows)
+  } catch (error) {
+    handleRouteError(res, error)
+  }
+})
+
+router.post('/company/loans', async (req, res) => {
+  try {
+    const workspaceId = workspaceIdFromRequest(req)
+    const { userId } = await requireCompanyFinanceAccess(req, workspaceId)
+
+    const borrowerUserId = String(req.body.borrowerUserId || '').trim()
+    if (!borrowerUserId) throw new Error('borrowerUserId is required')
+
+    const borrowerMembership = await getMembership(
+      borrowerUserId,
+      workspaceId,
+    )
+
+    if (!borrowerMembership) {
+      throw new Error('Borrower is not a member of this company')
+    }
+
+    const loanNumber = requiredText(req.body.loanNumber, 'loanNumber')
+    const name = requiredText(req.body.name || 'Company Loan', 'name')
+    const loanType = requiredText(
+      req.body.loanType || 'Partner Advance',
+      'loanType',
+    )
+
+    const principalAmount = money(
+      req.body.principalAmount,
+      'principalAmount',
+    )
+
+    const originationDate = req.body.originationDate
+      ? String(req.body.originationDate)
+      : new Date().toISOString().slice(0, 10)
+
+    const maturityDate = req.body.maturityDate
+      ? String(req.body.maturityDate)
+      : null
+
+    const nextPaymentDue = req.body.nextPaymentDue
+      ? String(req.body.nextPaymentDue)
+      : null
+
+    const interestRate =
+      req.body.interestRate == null
+        ? '0'
+        : money(req.body.interestRate, 'interestRate')
+
+    const monthlyPayment =
+      req.body.monthlyPayment == null
+        ? '0'
+        : money(req.body.monthlyPayment, 'monthlyPayment')
+
+    const repaymentMethod = req.body.repaymentMethod
+      ? String(req.body.repaymentMethod)
+      : null
+
+    const purpose = req.body.purpose
+      ? String(req.body.purpose)
+      : null
+
+    const notes = req.body.notes
+      ? String(req.body.notes)
+      : null
+
+    const borrowerName = String(
+      req.body.borrowerName || borrowerUserId,
+    )
+
+    const borrowerEmail = req.body.borrowerEmail
+      ? String(req.body.borrowerEmail)
+      : null
+
+    const borrowerRole = req.body.borrowerRole
+      ? String(req.body.borrowerRole)
+      : null
+
+    const accountId = String(
+      req.body.disbursementAccountId || '',
+    ).trim()
+
+    if (!accountId) {
+      throw new Error('disbursementAccountId is required')
+    }
+
+    const result = await db.transaction(async (tx: any) => {
+      const [existing] = await tx
+        .select({ id: companyLoans.id })
+        .from(companyLoans)
+        .where(
+          and(
+            eq(companyLoans.workspaceId, workspaceId),
+            eq(companyLoans.loanNumber, loanNumber),
+          ),
+        )
+        .limit(1)
+
+      if (existing) {
+        throw new Error(
+          'A loan with this loanNumber already exists in this company',
+        )
+      }
+
+      const [account] = await tx
+        .select()
+        .from(companyFinanceAccounts)
+        .where(
+          and(
+            eq(companyFinanceAccounts.id, accountId),
+            eq(companyFinanceAccounts.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1)
+
+      if (!account) {
+        throw new Error(
+          'Disbursement company finance account not found',
+        )
+      }
+
+      if (
+        Number(account.currentBalance) <
+        Number(principalAmount)
+      ) {
+        throw new Error(
+          'Insufficient company account balance for this loan',
+        )
+      }
+
+      const [loan] = await tx
+        .insert(companyLoans)
+        .values({
+          workspaceId,
+          loanNumber,
+          borrowerUserId,
+          borrowerName,
+          borrowerEmail,
+          borrowerRole,
+          name,
+          loanType,
+          principalAmount,
+          currentBalance: principalAmount,
+          interestRate,
+          monthlyPayment,
+          originationDate,
+          maturityDate,
+          nextPaymentDue,
+          repaymentMethod,
+          status: 'active',
+          approvalStatus: 'approved',
+          approvedByUserId: userId,
+          approvedAt: new Date(),
+          purpose,
+          notes,
+          metadata: {
+            disbursementAccountId: accountId,
+          },
+        })
+        .returning()
+
+      const [liability] = await tx
+        .insert(personalLiabilities)
+        .values({
+          userId: borrowerUserId,
+          name,
+          liabilityType: 'Company Loan',
+          currentBalance: principalAmount,
+          originalBalance: principalAmount,
+          interestRate,
+          paymentAmount: monthlyPayment,
+          paymentFrequency: 'monthly',
+          nextPaymentDate: nextPaymentDue,
+          startDate: originationDate,
+          currency: 'USD',
+          status: 'active',
+          notes: `Linked to company loan ${loanNumber} (${loan.id})`,
+          linkedCompanyLoanId: loan.id,
+        })
+        .returning()
+
+      const [transaction] = await tx
+        .insert(companyFinanceTransactions)
+        .values({
+          workspaceId,
+          accountId,
+          transactionType: 'adjustment',
+          category: 'company_loan_disbursement',
+          description:
+            `Loan disbursement - ${loanNumber} - ${borrowerName}`,
+          amount: String(
+            -Number(principalAmount).toFixed(2),
+          ),
+          transactionDate: originationDate,
+          reference: loanNumber,
+          createdByUserId: userId,
+          status: 'posted',
+          metadata: {
+            loanId: loan.id,
+            borrowerUserId,
+            direction: 'company_to_borrower',
+          },
+        })
+        .returning()
+
+      await tx
+        .update(companyFinanceAccounts)
+        .set({
+          currentBalance: String(
+            (
+              Number(account.currentBalance) -
+              Number(principalAmount)
+            ).toFixed(2),
+          ),
+        })
+        .where(
+          and(
+            eq(companyFinanceAccounts.id, accountId),
+            eq(companyFinanceAccounts.workspaceId, workspaceId),
+          ),
+        )
+
+      const [updatedLoan] = await tx
+        .update(companyLoans)
+        .set({
+          personalLiabilityId: liability.id,
+          metadata: {
+            disbursementAccountId: accountId,
+            disbursementTransactionId: transaction.id,
+          },
+        })
+        .where(
+          and(
+            eq(companyLoans.id, loan.id),
+            eq(companyLoans.workspaceId, workspaceId),
+          ),
+        )
+        .returning()
+
+      return {
+        loan: updatedLoan,
+        liability,
+        transaction,
+      }
+    })
+
+    res.status(201).json(result)
+  } catch (error) {
+    handleRouteError(res, error)
+  }
+})
+
+router.get('/company/loans/:id/payments', async (req, res) => {
+  try {
+    const workspaceId = workspaceIdFromRequest(req)
+    await requireCompanyFinanceAccess(req, workspaceId)
+
+    const rows = await db
+      .select()
+      .from(companyLoanPayments)
+      .where(
+        and(
+          eq(companyLoanPayments.workspaceId, workspaceId),
+          eq(companyLoanPayments.loanId, req.params.id),
+        ),
+      )
+      .orderBy(
+        desc(companyLoanPayments.paymentDate),
+        desc(companyLoanPayments.createdAt),
+      )
+
+    res.json(rows)
+  } catch (error) {
+    handleRouteError(res, error)
+  }
+})
+
+router.post('/company/loans/:id/payments', async (req, res) => {
+  try {
+    const workspaceId = workspaceIdFromRequest(req)
+    const { userId } =
+      await requireCompanyFinanceAccess(req, workspaceId)
+
+    const paymentAmount = money(req.body.amount, 'amount')
+
+    const principalAmount =
+      req.body.principalAmount == null
+        ? Number(paymentAmount)
+        : money(req.body.principalAmount, 'principalAmount')
+
+    const interestAmount =
+      req.body.interestAmount == null
+        ? 0
+        : money(req.body.interestAmount, 'interestAmount')
+
+    if (
+      Number(principalAmount) +
+        Number(interestAmount) >
+      Number(paymentAmount) + 0.01
+    ) {
+      throw new Error(
+        'Principal plus interest cannot exceed payment amount',
+      )
+    }
+
+    const paymentDate = req.body.paymentDate
+      ? String(req.body.paymentDate)
+      : new Date().toISOString().slice(0, 10)
+
+    const accountId = String(
+      req.body.accountId || '',
+    ).trim()
+
+    if (!accountId) {
+      throw new Error('accountId is required')
+    }
+
+    const result = await db.transaction(async (tx: any) => {
+      const [loan] = await tx
+        .select()
+        .from(companyLoans)
+        .where(
+          and(
+            eq(companyLoans.id, req.params.id),
+            eq(companyLoans.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1)
+
+      if (!loan) {
+        throw new Error('Company loan not found')
+      }
+
+      if (!loan.personalLiabilityId) {
+        throw new Error(
+          'Company loan is not linked to a Personal Finance liability',
+        )
+      }
+
+      if (loan.status !== 'active') {
+        throw new Error('Loan is not open for repayment')
+      }
+
+      if (
+        Number(principalAmount) >
+        Number(loan.currentBalance)
+      ) {
+        throw new Error(
+          'Principal payment cannot exceed the remaining loan balance',
+        )
+      }
+
+      const [account] = await tx
+        .select()
+        .from(companyFinanceAccounts)
+        .where(
+          and(
+            eq(companyFinanceAccounts.id, accountId),
+            eq(companyFinanceAccounts.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1)
+
+      if (!account) {
+        throw new Error('Company finance account not found')
+      }
+
+      const [liability] = await tx
+        .select()
+        .from(personalLiabilities)
+        .where(
+          and(
+            eq(personalLiabilities.id, loan.personalLiabilityId),
+            eq(
+              personalLiabilities.userId,
+              loan.borrowerUserId,
+            ),
+          ),
+        )
+        .limit(1)
+
+      if (!liability) {
+        throw new Error(
+          'Linked Personal Finance liability not found',
+        )
+      }
+
+      if (
+        Number(principalAmount) >
+        Number(liability.currentBalance)
+      ) {
+        throw new Error(
+          'Principal payment exceeds the linked Personal Finance balance',
+        )
+      }
+
+      const balanceAfter = Math.max(
+        0,
+        Number(loan.currentBalance) -
+          Number(principalAmount),
+      )
+
+      const liabilityBalanceAfter = Math.max(
+        0,
+        Number(liability.currentBalance) -
+          Number(principalAmount),
+      )
+
+      const newStatus =
+        balanceAfter <= 0.009
+          ? 'paid_off'
+          : 'active'
+
+      const newLiabilityStatus =
+        liabilityBalanceAfter <= 0.009
+          ? 'inactive'
+          : 'active'
+
+      const [payment] = await tx
+        .insert(companyLoanPayments)
+        .values({
+          workspaceId,
+          loanId: loan.id,
+          borrowerUserId: loan.borrowerUserId,
+          paymentDate,
+          amount: paymentAmount,
+          principalAmount: String(
+            Number(principalAmount).toFixed(2),
+          ),
+          interestAmount: String(
+            Number(interestAmount).toFixed(2),
+          ),
+          balanceAfter: balanceAfter.toFixed(2),
+          paymentMethod: req.body.paymentMethod
+            ? String(req.body.paymentMethod)
+            : null,
+          reference: req.body.reference
+            ? String(req.body.reference)
+            : null,
+          notes: req.body.notes
+            ? String(req.body.notes)
+            : null,
+          recordedByUserId: userId,
+        })
+        .returning()
+
+      const [transaction] = await tx
+        .insert(companyFinanceTransactions)
+        .values({
+          workspaceId,
+          accountId,
+          transactionType: 'income',
+          category: 'company_loan_repayment',
+          description:
+            `Loan repayment - ${loan.loanNumber} - ${loan.borrowerName}`,
+          amount: paymentAmount,
+          transactionDate: paymentDate,
+          reference: loan.loanNumber,
+          createdByUserId: userId,
+          status: 'posted',
+          metadata: {
+            loanId: loan.id,
+            loanPaymentId: payment.id,
+            borrowerUserId: loan.borrowerUserId,
+          },
+        })
+        .returning()
+
+      await tx
+        .update(companyFinanceAccounts)
+        .set({
+          currentBalance: String(
+            (
+              Number(account.currentBalance) +
+              Number(paymentAmount)
+            ).toFixed(2),
+          ),
+        })
+        .where(
+          and(
+            eq(companyFinanceAccounts.id, accountId),
+            eq(companyFinanceAccounts.workspaceId, workspaceId),
+          ),
+        )
+
+      await tx
+        .update(companyLoans)
+        .set({
+          currentBalance: balanceAfter.toFixed(2),
+          status: newStatus,
+        })
+        .where(
+          and(
+            eq(companyLoans.id, loan.id),
+            eq(companyLoans.workspaceId, workspaceId),
+          ),
+        )
+
+      await tx
+        .update(personalLiabilities)
+        .set({
+          currentBalance: liabilityBalanceAfter.toFixed(2),
+          status: newLiabilityStatus,
+        })
+        .where(
+          and(
+            eq(personalLiabilities.id, liability.id),
+            eq(
+              personalLiabilities.userId,
+              loan.borrowerUserId,
+            ),
+          ),
+        )
+
+      await tx.insert(personalDebtPayments).values({
+        userId: loan.borrowerUserId,
+        liabilityId: liability.id,
+        paymentDate,
+        amount: paymentAmount,
+        principalAmount: String(
+          Number(principalAmount).toFixed(2),
+        ),
+        interestAmount: String(
+          Number(interestAmount).toFixed(2),
+        ),
+        balanceAfter: liabilityBalanceAfter.toFixed(2),
+        notes: `Company loan payment ${payment.id}`,
+      })
+
+      return {
+        payment,
+        loanBalance: balanceAfter.toFixed(2),
+        personalLiabilityBalance:
+          liabilityBalanceAfter.toFixed(2),
+        loanStatus: newStatus,
+        personalLiabilityStatus:
+          newLiabilityStatus,
+        transaction,
+      }
+    })
+
+    res.status(201).json(result)
+  } catch (error) {
+    handleRouteError(res, error)
+  }
+})
 // COMPANY TRANSACTIONS
 // ============================================================
 

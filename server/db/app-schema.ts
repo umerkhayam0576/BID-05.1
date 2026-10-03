@@ -303,9 +303,66 @@ export const personalLiabilities = pgTable('app_personal_liabilities', {
   currency: text('currency').default('USD').notNull(),
   status: text('status').default('active').notNull(),
   notes: text('notes'),
+  linkedCompanyLoanId: uuid('linked_company_loan_id'),
   ...timestamps,
 })
+/*
+ * Company loans
+ *
+ * A company-issued loan is the source-of-truth financial relationship.
+ * The borrower's Personal Finance liability is linked to this loan.
+ */
+export const companyLoans = pgTable('app_company_loans', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  loanNumber: text('loan_number').notNull(),
+  borrowerUserId: uuid('borrower_user_id').notNull(),
+  borrowerName: text('borrower_name').notNull(),
+  borrowerEmail: text('borrower_email'),
+  borrowerRole: text('borrower_role'),
+  name: text('name').notNull(),
+  loanType: text('loan_type').notNull(),
+  principalAmount: numeric('principal_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  currentBalance: numeric('current_balance', { precision: 14, scale: 2 }).default('0').notNull(),
+  interestRate: numeric('interest_rate', { precision: 7, scale: 4 }).default('0').notNull(),
+  monthlyPayment: numeric('monthly_payment', { precision: 14, scale: 2 }).default('0').notNull(),
+  originationDate: date('origination_date').notNull(),
+  maturityDate: date('maturity_date'),
+  nextPaymentDue: date('next_payment_due'),
+  repaymentMethod: text('repayment_method'),
+  status: text('status').default('pending_approval').notNull(),
+  approvalStatus: text('approval_status').default('pending').notNull(),
+  approvedByUserId: text('approved_by_user_id'),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  purpose: text('purpose'),
+  notes: text('notes'),
+  personalLiabilityId: uuid('personal_liability_id'),
+  metadata: jsonb('metadata').default({}).notNull(),
+  ...timestamps,
+}, (table) => ({
+  loanNumberUnique: unique('app_company_loans_workspace_number_unique').on(
+    table.workspaceId,
+    table.loanNumber,
+  ),
+}))
 
+export const companyLoanPayments = pgTable('app_company_loan_payments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  loanId: uuid('loan_id').notNull(),
+  borrowerUserId: uuid('borrower_user_id').notNull(),
+  paymentDate: date('payment_date').notNull(),
+  amount: numeric('amount', { precision: 14, scale: 2 }).notNull(),
+  principalAmount: numeric('principal_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  interestAmount: numeric('interest_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  balanceAfter: numeric('balance_after', { precision: 14, scale: 2 }).default('0').notNull(),
+  paymentMethod: text('payment_method'),
+  reference: text('reference'),
+  financeTransactionId: uuid('finance_transaction_id'),
+  notes: text('notes'),
+  recordedByUserId: text('recorded_by_user_id').notNull(),
+  ...timestamps,
+})
 export const personalDebtPayments = pgTable('app_personal_debt_payments', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull(),
@@ -720,6 +777,8 @@ export const appSchema = {
   personalTransactions,
   personalAssets,
   personalLiabilities,
+  companyLoans,
+  companyLoanPayments,
   personalDebtPayments,
   personalMoneyRelationships,
   personalSettlements,
