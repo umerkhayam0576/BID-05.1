@@ -58,8 +58,8 @@ export const StudioView: React.FC = () => {
           <button key={String(id)} type="button" onClick={() => setActiveSection(id as StudioSection)} className="text-left rounded-lg border border-[#2d3449] bg-[#131b2e] p-4 hover:border-[#4edea3]/40 transition-colors">
             <Icon className="w-5 h-5 text-[#4edea3] mb-3" />
             <div className="text-lg font-bold text-white">—</div>
-            <div className="text-xs font-semibold text-[#dae2fd] mt-1">{label}</div>
-            <div className="text-[10px] text-[#86948a] mt-1">{sub}</div>
+            <div className="text-xs font-semibold text-[#dae2fd] mt-1">{(label as any)}</div>
+            <div className="text-[10px] text-[#86948a] mt-1">{(sub as any)}</div>
           </button>
         ))}
       </div>
@@ -69,7 +69,7 @@ export const StudioView: React.FC = () => {
           {sections.map(({ id, label, icon: Icon }) => (
             <button key={id} type="button" onClick={() => setActiveSection(id)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-md text-xs text-left transition-colors ${activeSection === id ? 'bg-[#171f33] text-white border-l-2 border-[#4edea3]' : 'text-[#bbcabf] hover:bg-[#131b2e]'}`}>
               <Icon className={`w-4 h-4 ${activeSection === id ? 'text-[#4edea3]' : 'text-[#86948a]'}`} />
-              <span>{label}</span>
+              <span>{(label as any)}</span>
             </button>
           ))}
         </nav>
@@ -115,3 +115,4 @@ export const StudioView: React.FC = () => {
     </div>
   );
 };
+

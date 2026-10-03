@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { Router } from 'express'
 import { db } from '../db'
 import { personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalProperties, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, users, notifications } from '../db/app-schema'
@@ -462,7 +462,7 @@ router.get('/notifications', async (req, res) => {
 router.post('/notifications/:id/read', async (req, res) => {
   const currentUserId = userId(req)
   const [notification] = await db.update(notifications).set({ readAt: new Date() })
-    .where(and(eq(notifications.id, req.params.id), eq(notifications.recipientUserId, currentUserId), eq(notifications.readAt, null)))
+    .where(and(eq(notifications.id, req.params.id), eq(notifications.recipientUserId, currentUserId), isNull(notifications.readAt)))
     .returning()
   if (!notification) return res.status(404).json({ error: 'Notification not found' })
   res.json(notification)
@@ -471,7 +471,7 @@ router.post('/notifications/:id/read', async (req, res) => {
 router.post('/notifications/read-all', async (req, res) => {
   const currentUserId = userId(req)
   await db.update(notifications).set({ readAt: new Date() })
-    .where(and(eq(notifications.recipientUserId, currentUserId), eq(notifications.readAt, null)))
+    .where(and(eq(notifications.recipientUserId, currentUserId), isNull(notifications.readAt)))
   res.json({ ok: true })
 })
 
@@ -683,3 +683,9 @@ router.delete('/properties/:id', async (req, res) => {
 })
 
 export { router as personalFinanceRoutes }
+
+
+
+
+
+

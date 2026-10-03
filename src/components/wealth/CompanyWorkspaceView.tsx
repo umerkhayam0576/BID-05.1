@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CompanyEntity, LedgerEvent, CapTableMember } from '../../types/wealth';
 import { CompanyDataImportPanel } from '../views/CompanyDataImportPanel';
 import { PeopleManagement } from './PeopleManagement';
+import { OrganizationSettings } from './OrganizationSettings';
 
 interface CompanyWorkspaceViewProps {
   company: CompanyEntity;
@@ -27,7 +28,8 @@ type CompanyTabId =
   | 'projects'
   | 'documents'
   | 'ownership-legal'
-  | 'people';
+  | 'people'
+  | 'settings-organization';
 
 export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   company,
@@ -123,7 +125,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   const [newMemberVoting, setNewMemberVoting] = useState<boolean>(true);
 
   const mask = (val: string | number) => {
-    if (privacyMode) return '$••••••';
+    if (privacyMode) return '$â€¢â€¢â€¢â€¢â€¢â€¢';
     if (typeof val === 'number') {
       return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
     }
@@ -168,7 +170,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
   };
 
   if (membershipLoading) {
-    return <div className="min-h-screen bg-[#060e20] text-[#dae2fd] flex items-center justify-center p-6"><div className="rounded-2xl border border-[#222a3d] bg-[#0d1728] p-8 text-center"><p className="text-xs font-mono uppercase tracking-widest text-[#4edea3]">Company access</p><h2 className="mt-2 text-xl font-semibold text-white">Checking your workspace permissions…</h2><p className="mt-2 text-sm text-[#86948a]">Please wait while we resolve your company role.</p></div></div>;
+    return <div className="min-h-screen bg-[#060e20] text-[#dae2fd] flex items-center justify-center p-6"><div className="rounded-2xl border border-[#222a3d] bg-[#0d1728] p-8 text-center"><p className="text-xs font-mono uppercase tracking-widest text-[#4edea3]">Company access</p><h2 className="mt-2 text-xl font-semibold text-white">Checking your workspace permissionsâ€¦</h2><p className="mt-2 text-sm text-[#86948a]">Please wait while we resolve your company role.</p></div></div>;
   }
 
   if (membershipError) {
@@ -229,11 +231,11 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                   </div>
                   <p className="text-xs text-[#bbcabf] font-mono mt-0.5 flex items-center gap-2 flex-wrap">
                     <span>{company.industry}</span>
-                    <span className="text-[#2d3449]">•</span>
+                    <span className="text-[#2d3449]">â€¢</span>
                     <span>{company.ownershipType}</span>
-                    <span className="text-[#2d3449]">•</span>
+                    <span className="text-[#2d3449]">â€¢</span>
                     <span className="text-[#adc6ff]">EIN: {company.taxId || 'XX-XXX9182'}</span>
-                    <span className="text-[#2d3449]">•</span>
+                    <span className="text-[#2d3449]">â€¢</span>
                     <span>Founded {company.foundedYear || 2023}</span>
                   </p>
                 </div>
@@ -379,6 +381,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
               { id: 'documents', label: 'Corporate Documents & Vault', icon: 'description' },
               { id: 'people', label: 'People & Access', icon: 'group' },
               { id: 'ownership-legal', label: 'Ownership & Legal', icon: 'gavel' },
+	      { id: 'settings-organization', label: 'Settings & Organization', icon: 'settings' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -400,11 +403,16 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
         {/* TAB: PEOPLE & ACCESS */}
         {activeTab === 'people' && (
           <PeopleManagement
-            workspaceId={company.workspaceId}
+            workspaceId={company.workspaceId || ""}
             companyName={company.name}
           />
         )}
-
+{activeTab === 'settings-organization' && (
+  <OrganizationSettings
+    workspaceId={company.workspaceId || ""}
+    companyName={company.name}
+  />
+)}
         {/* TAB: OWNERSHIP & LEGAL */}
         {activeTab === 'ownership-legal' && (
           <div className="space-y-6">
@@ -431,7 +439,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                 <>
                   {ownershipLoading && (
                     <div className="p-4 bg-[#131b2e] border border-[#222a3d] rounded-lg text-xs font-mono text-[#bbcabf]">
-                      Loading live ownership records…
+                      Loading live ownership recordsâ€¦
                     </div>
                   )}
 
@@ -481,7 +489,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                               </div>
                               <div className="min-w-0">
                                 <div className="text-sm font-bold text-[#dae2fd] truncate">{owner.displayName || 'Owner'}</div>
-                                <div className="text-xs text-[#bbcabf] font-mono">{owner.entityRole || 'member'} • {owner.status}</div>
+                                <div className="text-xs text-[#bbcabf] font-mono">{owner.entityRole || 'member'} â€¢ {owner.status}</div>
                               </div>
                             </div>
                             <div className="grid grid-cols-3 gap-5 text-right font-mono text-xs">
@@ -763,7 +771,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#bbcabf]">Fiscal Year:</span>
-                      <span className="text-[#dae2fd]">Jan 1 – Dec 31 (Calendar)</span>
+                      <span className="text-[#dae2fd]">Jan 1 â€“ Dec 31 (Calendar)</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-[#bbcabf]">GAAP Isolation:</span>
@@ -1043,7 +1051,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                   <div className="font-mono text-xl font-bold text-[#dae2fd]">
                     {mask((company.operatingCashReserve || 120000) * 0.6)}
                   </div>
-                  <div className="text-[10px] font-mono text-[#bbcabf]">Account: **** 9812 • Active</div>
+                  <div className="text-[10px] font-mono text-[#bbcabf]">Account: **** 9812 â€¢ Active</div>
                 </div>
 
                 <div className="p-4 bg-[#0b1326] border border-[#222a3d] rounded-lg space-y-2">
@@ -1054,7 +1062,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                   <div className="font-mono text-xl font-bold text-[#4edea3]">
                     {mask((company.operatingCashReserve || 120000) * 0.3)}
                   </div>
-                  <div className="text-[10px] font-mono text-[#bbcabf]">Account: **** 4410 • Liquid</div>
+                  <div className="text-[10px] font-mono text-[#bbcabf]">Account: **** 4410 â€¢ Liquid</div>
                 </div>
 
                 <div className="p-4 bg-[#0b1326] border border-[#222a3d] rounded-lg space-y-2">
@@ -1065,7 +1073,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                   <div className="font-mono text-xl font-bold text-[#dae2fd]">
                     {mask((company.operatingCashReserve || 120000) * 0.1)}
                   </div>
-                  <div className="text-[10px] font-mono text-[#bbcabf]">Account: **** 2108 • Q3 Set Aside</div>
+                  <div className="text-[10px] font-mono text-[#bbcabf]">Account: **** 2108 â€¢ Q3 Set Aside</div>
                 </div>
               </div>
             </div>
@@ -1266,7 +1274,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="text-[#4edea3] font-bold">{res.id}</span>
-                          <span className="text-[#2d3449]">•</span>
+                          <span className="text-[#2d3449]">â€¢</span>
                           <span className="text-[#dae2fd] font-semibold">{res.title}</span>
                         </div>
                         <p className="text-[#bbcabf]">{res.summary}</p>
@@ -1344,7 +1352,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                     </div>
                     <div className="font-mono text-lg font-bold text-[#dae2fd]">{mask(12450000)}</div>
                     <div className="text-xs text-[#bbcabf] font-mono">
-                      Status: 65% Win Probability • Schedule Delta Applied
+                      Status: 65% Win Probability â€¢ Schedule Delta Applied
                     </div>
                   </div>
 
@@ -1357,7 +1365,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                     </div>
                     <div className="font-mono text-lg font-bold text-[#dae2fd]">{mask(8620000)}</div>
                     <div className="text-xs text-[#bbcabf] font-mono">
-                      Status: 70% Strong • Structural Spec Validated
+                      Status: 70% Strong â€¢ Structural Spec Validated
                     </div>
                   </div>
 
@@ -1370,7 +1378,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                     </div>
                     <div className="font-mono text-lg font-bold text-[#dae2fd]">{mask(4200000)}</div>
                     <div className="text-xs text-[#bbcabf] font-mono">
-                      Status: Open RFI In Review • MEP Coordination
+                      Status: Open RFI In Review â€¢ MEP Coordination
                     </div>
                   </div>
                 </div>
@@ -1548,7 +1556,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
                     <div>
                       <div className="text-[#dae2fd] font-semibold">{doc.name}</div>
                       <div className="text-[11px] text-[#bbcabf]">
-                        {doc.type} • {doc.date} • {doc.size}
+                        {doc.type} â€¢ {doc.date} â€¢ {doc.size}
                       </div>
                     </div>
                   </div>
@@ -1693,7 +1701,7 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
               <div className="p-4 bg-[#131b2e] border border-[#222a3d] rounded-lg space-y-2">
                 <div className="text-sm font-bold text-[#dae2fd]">{viewingDoc}</div>
                 <div className="text-[#bbcabf]">
-                  Entity: <strong className="text-[#4edea3]">{company.name}</strong> • Tax ID: {company.taxId}
+                  Entity: <strong className="text-[#4edea3]">{company.name}</strong> â€¢ Tax ID: {company.taxId}
                 </div>
                 <div className="text-[#bbcabf]">
                   Digital Signature: <span className="text-[#adc6ff]">SHA-256 Verified On-Chain</span>
@@ -1720,3 +1728,4 @@ export const CompanyWorkspaceView: React.FC<CompanyWorkspaceViewProps> = ({
     </div>
   );
 };
+

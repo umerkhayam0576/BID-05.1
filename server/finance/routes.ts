@@ -543,13 +543,13 @@ router.get('/company/dashboard', async (req, res) => {
     ])
 
     const totalCash = accounts.reduce(
-      (sum, row) =>
+      (sum: number, row: any) =>
         sum + Number(row.currentBalance),
       0,
     )
 
     const totalReceivables = invoices.reduce(
-      (sum, row) =>
+      (sum: number, row: any) =>
         sum +
         Math.max(
           0,
@@ -561,22 +561,21 @@ router.get('/company/dashboard', async (req, res) => {
 
     const totalExpenses = expenses
       .filter(
-        (row) => row.status !== 'rejected',
+        (row: any) => row.status !== 'rejected',
       )
       .reduce(
-        (sum, row) =>
+        (sum: number, row: any) =>
           sum + Number(row.amount),
         0,
       )
 
     const totalPayments = payments
       .filter(
-        (row) =>
-          row.status === 'completed' ||
+        (row: any) => row.status === 'completed' ||
           row.status === 'posted',
       )
       .reduce(
-        (sum, row) =>
+        (sum: number, row: any) =>
           sum + Number(row.amount),
         0,
       )
@@ -594,7 +593,7 @@ router.get('/company/dashboard', async (req, res) => {
           totalPayments.toFixed(2),
         outstandingInvoices:
           invoices.filter(
-            (row) =>
+            (row: any) =>
               Number(row.totalAmount) >
               Number(row.paidAmount),
           ).length,
@@ -1067,3 +1066,9 @@ router.get('/company/tasks', async (req, res) => {
 })
 
 export { router as financeRoutes }
+
+
+
+
+
+

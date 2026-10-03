@@ -1,0 +1,6 @@
+server\db\app-schema.ts:618:export const departments = pgTable('app_departments', {
+server\db\app-schema.ts:628:  workspaceNameUnique: unique('app_departments_workspace_name_unique').on(table.workspaceId, table.name),
+server\db\app-schema.ts:631:export const roles = pgTable('app_roles', {
+server\db\app-schema.ts:642:  workspaceCodeUnique: unique('app_roles_workspace_code_unique').on(table.workspaceId, table.code),
+server\db\app-schema.ts:668:export const userRoles = pgTable('app_user_roles', {
+server\db\app-schema.ts:676:  workspaceUserRoleUnique: unique('app_user_roles_workspace_user_role_unique').on(
