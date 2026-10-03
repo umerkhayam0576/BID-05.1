@@ -50,7 +50,16 @@ export const userSessions = pgTable('app_user_sessions', {
 }, (table) => ({
   tokenHashUnique: unique('app_user_sessions_token_hash_unique').on(table.tokenHash),
 }))
-
+export const passwordResetTokens = pgTable('app_password_reset_tokens', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  tokenHashUnique: unique('app_password_reset_tokens_token_hash_unique').on(table.tokenHash),
+}))
 export const workspaces = pgTable('app_workspaces', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
@@ -606,5 +615,119 @@ export const financeTasks = pgTable('app_finance_tasks', {
   ...timestamps,
 })
 
+export const departments = pgTable('app_departments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  name: text('name').notNull(),
+  code: text('code'),
+  description: text('description'),
+  managerUserId: text('manager_user_id'),
+  status: text('status').default('active').notNull(),
+  ...timestamps,
+}, (table) => ({
+  workspaceNameUnique: unique('app_departments_workspace_name_unique').on(table.workspaceId, table.name),
+}))
 
-export const appSchema = { users, userCredentials, userSessions, workspaces, memberships, entityOwnerships, entityInvitations, workspaceInvitations, clients, employees, projects, projectAccess, reminders, notifications, salesLeads, salesActivities, attendanceRecords, auditLogs, financeAccounts, financeTransactions, financeExpenses, financeInvoices, financePayments, financeReconciliations, financeTasks, ownershipHistory, ownershipChangeRequests, legalDocuments, legalDocumentVersions, agreements, agreementParties, agreementApprovals, agreementSignatures, legalDocumentAuditLogs, personalAccounts, personalTransactions, personalAssets, personalLiabilities, personalDebtPayments, personalMoneyRelationships, personalSettlements, personalSettlementAllocations, personalProperties }
+export const roles = pgTable('app_roles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id'),
+  name: text('name').notNull(),
+  code: text('code').notNull(),
+  description: text('description'),
+  scope: text('scope').default('workspace').notNull(),
+  isSystemRole: boolean('is_system_role').default(false).notNull(),
+  status: text('status').default('active').notNull(),
+  ...timestamps,
+}, (table) => ({
+  workspaceCodeUnique: unique('app_roles_workspace_code_unique').on(table.workspaceId, table.code),
+}))
+
+export const permissions = pgTable('app_permissions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  code: text('code').notNull(),
+  module: text('module').notNull(),
+  description: text('description'),
+  createdAt: timestamps.createdAt,
+}, (table) => ({
+  codeUnique: unique('app_permissions_code_unique').on(table.code),
+}))
+
+export const rolePermissions = pgTable('app_role_permissions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  roleId: uuid('role_id').notNull(),
+  permissionId: uuid('permission_id').notNull(),
+  createdAt: timestamps.createdAt,
+}, (table) => ({
+  rolePermissionUnique: unique('app_role_permissions_role_permission_unique').on(
+    table.roleId,
+    table.permissionId,
+  ),
+}))
+
+export const userRoles = pgTable('app_user_roles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  userId: text('user_id').notNull(),
+  roleId: uuid('role_id').notNull(),
+  status: text('status').default('active').notNull(),
+  ...timestamps,
+}, (table) => ({
+  workspaceUserRoleUnique: unique('app_user_roles_workspace_user_role_unique').on(
+    table.workspaceId,
+    table.userId,
+    table.roleId,
+  ),
+}))
+
+export const appSchema = {
+  users,
+  userCredentials,
+  userSessions,
+  passwordResetTokens,
+  workspaces,
+  memberships,
+  entityOwnerships,
+  entityInvitations,
+  workspaceInvitations,
+  clients,
+  employees,
+  projects,
+  projectAccess,
+  reminders,
+  notifications,
+  salesLeads,
+  salesActivities,
+  attendanceRecords,
+  auditLogs,
+  financeAccounts,
+  financeTransactions,
+  financeExpenses,
+  financeInvoices,
+  financePayments,
+  financeReconciliations,
+  financeTasks,
+  ownershipHistory,
+  ownershipChangeRequests,
+  legalDocuments,
+  legalDocumentVersions,
+  agreements,
+  agreementParties,
+  agreementApprovals,
+  agreementSignatures,
+  legalDocumentAuditLogs,
+  personalAccounts,
+  personalTransactions,
+  personalAssets,
+  personalLiabilities,
+  personalDebtPayments,
+  personalMoneyRelationships,
+  personalSettlements,
+  personalSettlementAllocations,
+  personalProperties,
+  departments,
+  roles,
+  permissions,
+  rolePermissions,
+  userRoles,
+}

@@ -3,7 +3,15 @@ import fs from 'fs/promises'
 import path from 'path'
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import { db } from '../db'
-import { users, userCredentials, userSessions, userProfiles, workspaces, workspaceInvitations } from '../db/app-schema'
+import {
+  users,
+  userCredentials,
+  userSessions,
+  passwordResetTokens,
+  userProfiles,
+  workspaces,
+  workspaceInvitations,
+} from '../db/app-schema'
 import {
   createSessionToken,
   hashPassword,
@@ -128,7 +136,160 @@ authRoutes.post('/register', async (req, res) => {
     return res.status(500).json({ error: 'Unable to create account' })
   }
 })
+authRoutes.post('/forgot-password', async (req, res) => {
+  try {
+    const email = typeof req.body?.email === 'string'
+      ? normalizeEmail(req.body.email)
+      : ''
 
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' })
+    }
+
+    const [user] = await db
+      .select({
+        id: users.id,
+        status: users.status,
+      })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1)
+
+    const genericResponse = {
+      message: 'If an account exists for that email, a password reset link has been created.',
+    }
+
+    if (!user || user.status !== 'active') {
+      return res.json(genericResponse)
+    }
+
+    await db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(and(
+        eq(passwordResetTokens.userId, user.id),
+        isNull(passwordResetTokens.usedAt),
+      ))
+
+    const resetToken = createSessionToken()
+    const tokenHash = hashSessionToken(resetToken)
+
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
+
+    await db.insert(passwordResetTokens).values({
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    })
+
+    if (process.env.NODE_ENV !== 'production') {
+      const appUrl = process.env.APP_URL || 'http://localhost:3000'
+
+      return res.json({
+        ...genericResponse,
+        developmentResetUrl: `${appUrl}/reset-password?token=${encodeURIComponent(resetToken)}`,
+      })
+    }
+
+    return res.json(genericResponse)
+  } catch {
+    return res.status(500).json({ error: 'Unable to process password reset request' })
+  }
+})
+authRoutes.post('/reset-password', async (req, res) => {
+  try {
+    const token = typeof req.body?.token === 'string'
+      ? req.body.token.trim()
+      : ''
+
+    const newPassword = typeof req.body?.newPassword === 'string'
+      ? req.body.newPassword
+      : ''
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        error: 'Reset token and new password are required',
+      })
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters',
+      })
+    }
+
+    const tokenHash = hashSessionToken(token)
+
+    const [resetRecord] = await db
+      .select({
+        id: passwordResetTokens.id,
+        userId: passwordResetTokens.userId,
+        expiresAt: passwordResetTokens.expiresAt,
+      })
+      .from(passwordResetTokens)
+      .where(and(
+        eq(passwordResetTokens.tokenHash, tokenHash),
+        isNull(passwordResetTokens.usedAt),
+        gt(passwordResetTokens.expiresAt, new Date()),
+      ))
+      .limit(1)
+
+    if (!resetRecord) {
+      return res.status(400).json({
+        error: 'This password reset link is invalid or has expired',
+      })
+    }
+
+    const [user] = await db
+      .select({
+        id: users.id,
+        status: users.status,
+      })
+      .from(users)
+      .where(eq(users.id, resetRecord.userId))
+      .limit(1)
+
+    if (!user || user.status !== 'active') {
+      return res.status(400).json({
+        error: 'This password reset link is invalid or has expired',
+      })
+    }
+
+    const passwordHash = await hashPassword(newPassword)
+
+    await db
+      .update(userCredentials)
+      .set({
+        passwordHash,
+        passwordUpdatedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(userCredentials.userId, user.id))
+
+    // Make the reset token one-time use.
+    await db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordResetTokens.id, resetRecord.id))
+
+    // Revoke all existing sessions after a password reset.
+    await db
+      .update(userSessions)
+      .set({ revokedAt: new Date() })
+      .where(and(
+        eq(userSessions.userId, user.id),
+        isNull(userSessions.revokedAt),
+      ))
+
+    return res.json({
+      message: 'Password reset successfully. Please sign in with your new password.',
+    })
+  } catch {
+    return res.status(500).json({
+      error: 'Unable to reset password',
+    })
+  }
+})
 authRoutes.post('/login', async (req, res) => {
   try {
     const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''

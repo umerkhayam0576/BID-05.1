@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+﻿import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Wallet } from 'lucide-react';
 import {
   INITIAL_METRICS,
@@ -365,6 +365,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   // Resolve the employee's dedicated portal before rendering any corporate workspace UI.
   // This hook must remain alongside the other hooks so React's hook order never changes.
   const [employeePortalRole, setEmployeePortalRole] = useState<PortalRole | null | undefined>(undefined);
+  const [employeeWorkspaceId, setEmployeeWorkspaceId] = useState<string | null>(null);
   const employeeOnly = employeePortalRole !== null && employeePortalRole !== undefined;
 
   useEffect(() => {
@@ -376,6 +377,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         if (!response.ok) throw new Error(payload.error || 'Unable to resolve portal access');
         const memberships = Array.isArray(payload.memberships) ? payload.memberships : [];
         const employeeMembership = memberships.find((membership: any) => membership.role === 'employee');
+	if (employeeMembership?.workspaceId) {
+  setEmployeeWorkspaceId(employeeMembership.workspaceId);
+}
         if (!cancelled) {
           const role = employeeMembership?.portalRole;
           setEmployeePortalRole(
@@ -399,7 +403,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       <div className="min-h-screen bg-[#080d18] text-[#dae2fd] flex items-center justify-center">
         <div className="rounded-2xl border border-[#222a3d] bg-[#0d1728] px-8 py-7 text-center">
           <p className="text-[10px] font-mono uppercase tracking-widest text-[#4edea3]">Secure portal</p>
-          <h1 className="mt-2 text-lg font-semibold text-white">Checking your access…</h1>
+          <h1 className="mt-2 text-lg font-semibold text-white">Checking your accessâ€¦</h1>
         </div>
       </div>
     );
@@ -408,7 +412,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   if (employeeOnly) {
     return employeePortalRole === 'services'
       ? <EmployeePortalView />
-      : <EmployeeRolePortal portalRole={employeePortalRole!} />;
+      : <EmployeeRolePortal portalRole={employeePortalRole!} workspaceId={employeeWorkspaceId!} onLogout={onLogout} />;
   }
 
   // Handlers
@@ -1040,3 +1044,4 @@ export default function App() {
 
   return <AuthenticatedApp onLogout={handleLogout} />;
 }
+
