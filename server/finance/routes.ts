@@ -4,6 +4,9 @@ import { db } from '../db'
 import { financeAccounts, financeBudgets, financeGoals, financeRecurringRules, financeTransactions } from '../db/schema'
 import {
   employees,
+  users,
+  userProfiles,
+  entityOwnerships,
   financeAccounts as companyFinanceAccounts,
   financeTransactions as companyFinanceTransactions,
   financeExpenses,
@@ -15,6 +18,8 @@ import {
   companyLoanPayments,
   personalLiabilities,
   personalDebtPayments,
+  companyLoanEligibilityPolicies,
+  companyLoanApplications,
 } from '../db/app-schema'
 import { getAuthenticatedUserId, getMembership } from '../auth/middleware'
 import { getScope, getUserId, handleRouteError, money, positiveInteger, requiredText } from './validation'
@@ -691,6 +696,134 @@ router.post('/company/accounts', async (req, res) => {
 
 // ============================================================
 
+// ============================================================
+// COMPANY LOAN ELIGIBILITY + APPLICATIONS
+// ============================================================
+
+const DEFAULT_LOAN_POLICIES = {
+  employee: { minimumTenureDays: 180, maximumLoanAmount: '3000', salaryMultiple: '3', maximumActiveLoans: 1, minimumGapDays: 90, allowProbation: false, requireActiveStatus: true, allowAdminOverride: true },
+  partner: { minimumTenureDays: 90, maximumLoanAmount: '10000', salaryMultiple: null, maximumActiveLoans: 2, minimumGapDays: 60, allowProbation: true, requireActiveStatus: true, allowAdminOverride: true },
+} as const
+
+function normalizePersonType(value: unknown) {
+  const type = String(value || '').trim().toLowerCase()
+  if (type !== 'employee' && type !== 'partner') throw new Error('personType must be employee or partner')
+  return type as 'employee' | 'partner'
+}
+
+async function getLoanPolicy(workspaceId: string, personType: 'employee' | 'partner') {
+  const [policy] = await db.select().from(companyLoanEligibilityPolicies).where(and(eq(companyLoanEligibilityPolicies.workspaceId, workspaceId), eq(companyLoanEligibilityPolicies.personType, personType), eq(companyLoanEligibilityPolicies.status, 'active'))).limit(1)
+  return policy || { workspaceId, personType, ...DEFAULT_LOAN_POLICIES[personType] }
+}
+
+async function getActiveLoanCount(workspaceId: string, applicantUserId: string) {
+  const rows = await db.select({ id: companyLoans.id, currentBalance: companyLoans.currentBalance }).from(companyLoans).where(and(eq(companyLoans.workspaceId, workspaceId), eq(companyLoans.borrowerUserId, applicantUserId), eq(companyLoans.status, 'active')))
+  return rows.filter((row) => Number(row.currentBalance) > 0.009).length
+}
+
+async function resolveLoanPerson(workspaceId: string, applicantUserId: string) {
+  const [user] = await db.select({ id: users.id, email: users.email, displayName: users.displayName, status: users.status }).from(users).where(eq(users.id, applicantUserId)).limit(1)
+  if (!user) throw new Error('Person not found')
+  const [employee] = await db.select().from(employees).where(and(eq(employees.workspaceId, workspaceId), eq(employees.userId, applicantUserId), eq(employees.status, 'active'))).limit(1)
+  if (employee) {
+    const metadata = (employee.metadata || {}) as Record<string, unknown>
+    const hireDateValue = metadata.hireDate || metadata.hire_date
+    const monthlyIncome = Number(metadata.monthlyGross || metadata.monthly_gross || 0)
+    return { user, personType: 'employee' as const, name: employee.name, email: employee.email || user.email, role: employee.title || employee.portalRole || 'Employee', status: employee.status, startDate: hireDateValue ? String(hireDateValue) : null, monthlyIncome, employeeId: employee.id }
+  }
+  const [partner] = await db.select().from(entityOwnerships).where(and(eq(entityOwnerships.workspaceId, workspaceId), eq(entityOwnerships.userId, applicantUserId), eq(entityOwnerships.status, 'active'))).limit(1)
+  if (partner) return { user, personType: 'partner' as const, name: user.displayName, email: user.email, role: partner.entityRole || 'Partner', status: partner.status, startDate: partner.createdAt ? new Date(partner.createdAt).toISOString().slice(0, 10) : null, monthlyIncome: 0, employeeId: null }
+  throw new Error('Person is not an active employee or partner of this company')
+}
+
+function daysSince(dateValue: string | null) {
+  if (!dateValue) return 0
+  const start = new Date(dateValue + 'T00:00:00Z').getTime()
+  if (!Number.isFinite(start)) return 0
+  return Math.max(0, Math.floor((Date.now() - start) / 86400000))
+}
+
+async function evaluateLoanEligibility(workspaceId: string, applicantUserId: string, requestedAmount: number) {
+  const person = await resolveLoanPerson(workspaceId, applicantUserId)
+  const policy = await getLoanPolicy(workspaceId, person.personType)
+  const activeLoanCount = await getActiveLoanCount(workspaceId, applicantUserId)
+  const tenureDays = daysSince(person.startDate)
+  const reasons: string[] = []
+  if (policy.requireActiveStatus && person.status !== 'active') reasons.push('Person is not active')
+  if (tenureDays < Number(policy.minimumTenureDays)) reasons.push('Minimum tenure is ' + policy.minimumTenureDays + ' days')
+  if (activeLoanCount >= Number(policy.maximumActiveLoans)) reasons.push('Maximum active loans allowed is ' + policy.maximumActiveLoans)
+  let maximumEligibleAmount = Number(policy.maximumLoanAmount)
+  if (policy.salaryMultiple != null && person.monthlyIncome > 0) maximumEligibleAmount = Math.min(maximumEligibleAmount, person.monthlyIncome * Number(policy.salaryMultiple))
+  else if (policy.salaryMultiple != null && person.personType === 'employee') reasons.push('Monthly income is not available for salary-multiple eligibility')
+  if (requestedAmount > Number(policy.maximumLoanAmount)) reasons.push('Requested amount exceeds the maximum loan amount of ' + Number(policy.maximumLoanAmount).toFixed(2))
+  if (requestedAmount > maximumEligibleAmount) reasons.push('Requested amount exceeds the calculated eligible amount of ' + maximumEligibleAmount.toFixed(2))
+  return { eligible: reasons.length === 0, reasons, maximumEligibleAmount: maximumEligibleAmount.toFixed(2), activeLoanCount, tenureDays, policy, person }
+}
+
+router.get('/company/loan-people', async (req, res) => {
+  try {
+    const workspaceId = workspaceIdFromRequest(req); await requireCompanyFinanceAccess(req, workspaceId)
+    const [employeeRows, partnerRows] = await Promise.all([
+      db.select().from(employees).where(and(eq(employees.workspaceId, workspaceId), eq(employees.status, 'active'))),
+      db.select().from(entityOwnerships).where(and(eq(entityOwnerships.workspaceId, workspaceId), eq(entityOwnerships.status, 'active'))),
+    ])
+    const ids = Array.from(new Set([...employeeRows.map((r) => r.userId).filter(Boolean) as string[], ...partnerRows.map((r) => r.userId)]))
+    const people = []
+    for (const applicantUserId of ids) {
+      try {
+        const person = await resolveLoanPerson(workspaceId, applicantUserId)
+        const [profile] = await db.select({ personalFinanceId: userProfiles.personalFinanceId }).from(userProfiles).where(eq(userProfiles.userId, applicantUserId)).limit(1)
+        const eligibility = await evaluateLoanEligibility(workspaceId, applicantUserId, 0)
+        people.push({ userId: applicantUserId, personalFinanceId: profile?.personalFinanceId || null, name: person.name, email: person.email, personType: person.personType, role: person.role, status: person.status, startDate: person.startDate, activeLoanCount: eligibility.activeLoanCount, maximumEligibleAmount: eligibility.maximumEligibleAmount, eligible: eligibility.reasons.length === 0, eligibilityReasons: eligibility.reasons })
+      } catch { /* Ignore members who are not valid loan people. */ }
+    }
+    res.json(people)
+  } catch (error) { handleRouteError(res, error) }
+})
+
+router.get('/company/loan-eligibility/policies', async (req, res) => {
+  try { const workspaceId = workspaceIdFromRequest(req); await requireCompanyFinanceAccess(req, workspaceId); res.json(await Promise.all([getLoanPolicy(workspaceId, 'employee'), getLoanPolicy(workspaceId, 'partner')])) } catch (error) { handleRouteError(res, error) }
+})
+
+router.put('/company/loan-eligibility/policies/:personType', async (req, res) => {
+  try {
+    const workspaceId = workspaceIdFromRequest(req); const { userId } = await requireCompanyFinanceAccess(req, workspaceId); const personType = normalizePersonType(req.params.personType)
+    const values = { workspaceId, personType, minimumTenureDays: Math.max(0, Number(req.body.minimumTenureDays ?? 0)), maximumLoanAmount: money(req.body.maximumLoanAmount ?? 0, 'maximumLoanAmount'), salaryMultiple: req.body.salaryMultiple == null || req.body.salaryMultiple === '' ? null : money(req.body.salaryMultiple, 'salaryMultiple'), maximumActiveLoans: Math.max(1, Number(req.body.maximumActiveLoans ?? 1)), minimumGapDays: Math.max(0, Number(req.body.minimumGapDays ?? 0)), allowProbation: Boolean(req.body.allowProbation), requireActiveStatus: req.body.requireActiveStatus !== false, allowAdminOverride: req.body.allowAdminOverride !== false, status: 'active', metadata: { updatedByUserId: userId } }
+    const [policy] = await db.insert(companyLoanEligibilityPolicies).values(values).onConflictDoUpdate({ target: [companyLoanEligibilityPolicies.workspaceId, companyLoanEligibilityPolicies.personType], set: { ...values, updatedAt: new Date() } }).returning()
+    res.json(policy)
+  } catch (error) { handleRouteError(res, error) }
+})
+
+router.get('/company/loan-applications', async (req, res) => {
+  try { const workspaceId = workspaceIdFromRequest(req); await requireCompanyFinanceAccess(req, workspaceId); res.json(await db.select().from(companyLoanApplications).where(eq(companyLoanApplications.workspaceId, workspaceId)).orderBy(desc(companyLoanApplications.createdAt)) } catch (error) { handleRouteError(res, error) }
+})
+
+router.post('/company/loan-applications', async (req, res) => {
+  try {
+    const workspaceId = workspaceIdFromRequest(req); const authenticatedUserId = getAuthenticatedUserId(req); const applicantUserId = String(req.body.applicantUserId || authenticatedUserId).trim()
+    if (applicantUserId !== authenticatedUserId) throw new Error('You can only submit a loan application for your own Personal Finance ID')
+    const requestedAmount = money(req.body.requestedAmount, 'requestedAmount'); const purpose = requiredText(req.body.purpose, 'purpose')
+    const requestedTermMonths = req.body.requestedTermMonths == null ? null : positiveInteger(req.body.requestedTermMonths, 'requestedTermMonths')
+    const eligibility = await evaluateLoanEligibility(workspaceId, applicantUserId, Number(requestedAmount))
+    const [profile] = await db.select({ personalFinanceId: userProfiles.personalFinanceId }).from(userProfiles).where(eq(userProfiles.userId, applicantUserId)).limit(1)
+    if (!profile?.personalFinanceId) throw new Error('Personal Finance ID is required before applying for a company loan')
+    const [application] = await db.insert(companyLoanApplications).values({ workspaceId, applicantUserId, personalFinanceId: profile.personalFinanceId, applicantName: eligibility.person.name, applicantRole: eligibility.person.role, requestedAmount, requestedTermMonths, purpose, repaymentMethod: req.body.repaymentMethod ? String(req.body.repaymentMethod) : null, status: eligibility.eligible ? 'pending' : 'ineligible', eligibilityStatus: eligibility.eligible ? 'eligible' : 'ineligible', eligibilitySnapshot: { checkedAt: new Date().toISOString(), reasons: eligibility.reasons, maximumEligibleAmount: eligibility.maximumEligibleAmount, activeLoanCount: eligibility.activeLoanCount, tenureDays: eligibility.tenureDays, personType: eligibility.person.personType } }).returning()
+    res.status(201).json({ application, eligibility })
+  } catch (error) { handleRouteError(res, error) }
+})
+
+router.patch('/company/loan-applications/:id/decision', async (req, res) => {
+  try {
+    const workspaceId = workspaceIdFromRequest(req); const { userId } = await requireCompanyFinanceAccess(req, workspaceId); const decision = String(req.body.decision || '').trim().toLowerCase()
+    if (!['approved', 'rejected', 'needs_information'].includes(decision)) throw new Error('decision must be approved, rejected, or needs_information')
+    const [application] = await db.select().from(companyLoanApplications).where(and(eq(companyLoanApplications.id, req.params.id), eq(companyLoanApplications.workspaceId, workspaceId))).limit(1)
+    if (!application) throw new Error('Loan application not found'); if (application.status !== 'pending') throw new Error('Only pending applications can be decided'); if (application.applicantUserId === userId) throw new Error('You cannot approve or reject your own loan application')
+    const eligibility = await evaluateLoanEligibility(workspaceId, application.applicantUserId, Number(application.requestedAmount)); const override = Boolean(req.body.overrideEligibility)
+    if (decision === 'approved' && !eligibility.eligible && !(override && String(req.body.overrideReason || '').trim())) throw new Error('Application is not eligible. An eligibility override reason is required.')
+    const [updated] = await db.update(companyLoanApplications).set({ status: decision, eligibilityStatus: eligibility.eligible ? 'eligible' : 'ineligible', eligibilitySnapshot: { ...((application.eligibilitySnapshot || {}) as Record<string, unknown>), finalCheckAt: new Date().toISOString(), finalReasons: eligibility.reasons, overrideEligibility: override, overrideReason: override ? String(req.body.overrideReason || '').trim() : null }, decisionNotes: req.body.notes ? String(req.body.notes) : null, decidedByUserId: userId, decidedAt: new Date() }).where(and(eq(companyLoanApplications.id, application.id), eq(companyLoanApplications.workspaceId, workspaceId))).returning()
+    res.json({ application: updated, eligibility })
+  } catch (error) { handleRouteError(res, error) }
+})
 // ============================================================
 // COMPANY LOANS
 // ============================================================
