@@ -388,6 +388,8 @@ export const companyLoanApplications = pgTable('app_company_loan_applications', 
   companyLoanId: uuid('company_loan_id'),
   metadata: jsonb('metadata').default({}).notNull(),
   ...timestamps,
+})
+
 export const companyLoanPayments = pgTable('app_company_loan_payments', {
   id: uuid('id').defaultRandom().primaryKey(),
   workspaceId: uuid('workspace_id').notNull(),
