@@ -795,7 +795,7 @@ router.put('/company/loan-eligibility/policies/:personType', async (req, res) =>
 })
 
 router.get('/company/loan-applications', async (req, res) => {
-  try { const workspaceId = workspaceIdFromRequest(req); await requireCompanyFinanceAccess(req, workspaceId); res.json(await db.select().from(companyLoanApplications).where(eq(companyLoanApplications.workspaceId, workspaceId)).orderBy(desc(companyLoanApplications.createdAt)) } catch (error) { handleRouteError(res, error) }
+  try { const workspaceId = workspaceIdFromRequest(req); await requireCompanyFinanceAccess(req, workspaceId); res.json(await db.select().from(companyLoanApplications).where(eq(companyLoanApplications.workspaceId, workspaceId)).orderBy(desc(companyLoanApplications.createdAt))) } catch (error) { handleRouteError(res, error) }
 })
 
 router.post('/company/loan-applications', async (req, res) => {
