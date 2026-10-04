@@ -26,11 +26,14 @@ export const userProfiles = pgTable('app_user_profiles', {
   timezone: text('timezone').default('UTC').notNull(),
   language: text('language').default('en').notNull(),
   preferredCurrency: text('preferred_currency').default('USD').notNull(),
+  personalFinanceId: text('personal_finance_id'),
   dateFormat: text('date_format').default('YYYY-MM-DD').notNull(),
   emailNotifications: boolean('email_notifications').default(true).notNull(),
   inAppNotifications: boolean('in_app_notifications').default(true).notNull(),
   ...timestamps,
-})
+}, (table) => ({
+  personalFinanceIdUnique: unique('app_user_profiles_personal_finance_id_unique').on(table.personalFinanceId),
+}))
 
 export const userCredentials = pgTable('app_user_credentials', {
   userId: uuid('user_id').primaryKey(),
@@ -344,6 +347,49 @@ export const companyLoans = pgTable('app_company_loans', {
     table.workspaceId,
     table.loanNumber,
   ),
+}))
+
+export const companyLoanEligibilityPolicies = pgTable('app_company_loan_eligibility_policies', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  personType: text('person_type').notNull(),
+  minimumTenureDays: integer('minimum_tenure_days').default(0).notNull(),
+  maximumLoanAmount: numeric('maximum_loan_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+  salaryMultiple: numeric('salary_multiple', { precision: 7, scale: 4 }),
+  maximumActiveLoans: integer('maximum_active_loans').default(1).notNull(),
+  minimumGapDays: integer('minimum_gap_days').default(0).notNull(),
+  allowProbation: boolean('allow_probation').default(false).notNull(),
+  requireActiveStatus: boolean('require_active_status').default(true).notNull(),
+  allowAdminOverride: boolean('allow_admin_override').default(true).notNull(),
+  status: text('status').default('active').notNull(),
+  metadata: jsonb('metadata').default({}).notNull(),
+  ...timestamps,
+}, (table) => ({
+  workspacePersonTypeUnique: unique('app_company_loan_eligibility_workspace_person_type_unique').on(table.workspaceId, table.personType),
+}))
+
+export const companyLoanApplications = pgTable('app_company_loan_applications', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  workspaceId: uuid('workspace_id').notNull(),
+  applicantUserId: uuid('applicant_user_id').notNull(),
+  personalFinanceId: text('personal_finance_id').notNull(),
+  applicantName: text('applicant_name').notNull(),
+  applicantRole: text('applicant_role').notNull(),
+  requestedAmount: numeric('requested_amount', { precision: 14, scale: 2 }).notNull(),
+  requestedTermMonths: integer('requested_term_months'),
+  purpose: text('purpose').notNull(),
+  repaymentMethod: text('repayment_method'),
+  status: text('status').default('pending').notNull(),
+  eligibilityStatus: text('eligibility_status').default('eligible').notNull(),
+  eligibilitySnapshot: jsonb('eligibility_snapshot').default({}).notNull(),
+  decisionNotes: text('decision_notes'),
+  decidedByUserId: text('decided_by_user_id'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  companyLoanId: uuid('company_loan_id'),
+  metadata: jsonb('metadata').default({}).notNull(),
+  ...timestamps,
+}, (table) => ({
+  workspaceApplicantStatusUnique: unique('app_company_loan_application_active_applicant_unique').on(table.workspaceId, table.applicantUserId, table.status),
 }))
 
 export const companyLoanPayments = pgTable('app_company_loan_payments', {
@@ -779,6 +825,8 @@ export const appSchema = {
   personalLiabilities,
   companyLoans,
   companyLoanPayments,
+  companyLoanEligibilityPolicies,
+  companyLoanApplications,
   personalDebtPayments,
   personalMoneyRelationships,
   personalSettlements,
