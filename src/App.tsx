@@ -419,7 +419,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 
   if (employeeOnly) {
     return employeePortalRole === 'services'
-      ? <EmployeePortalView />
+      ? <EmployeePortalView onLogout={onLogout} />
       : <EmployeeRolePortal portalRole={employeePortalRole!} workspaceId={employeeWorkspaceId!} onLogout={onLogout} />;
   }
 
@@ -704,7 +704,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               onRecordCashOutflow={handleCreateTransaction}
             />
           ) : activeTab === 'employee-portal' ? (
-            <EmployeePortalView />
+            <EmployeePortalView onLogout={onLogout} />
           ) : activeTab === 'studio' ? (
             <StudioView />
           ) : activeTab === 'workflow-automation' ? (
@@ -1053,4 +1053,6 @@ export default function App() {
 
   return <AuthenticatedApp onLogout={handleLogout} />;
 }
+
+
 
