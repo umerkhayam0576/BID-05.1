@@ -207,24 +207,26 @@ export interface LoanItem {
   notes?: string;
   
   // Person/People who take the loan from the company
-  direction?: LoanDirection; // 'company_loaned_out' (default for company-issued loans) or 'company_borrowed'
-  borrowerName?: string; // e.g. "Liam Scott", "Elena Rostova", "Syed Ahmed"
-  borrowerRole?: string; // e.g. "Junior MEP Quantity Surveyor"
-  borrowerEmail?: string;
-  borrowerId?: string; // EMP-106, etc.
-  repaymentMethod?: 'Payroll Deduction' | 'Direct Bank ACH' | 'Auto-Debit' | 'Check';
-  
-  // Approval metadata
-  approvedBy?: string; // e.g. "Umer Khayam (CEO & Founder)" or "Sarah Jenkins (Financial Controller)"
-  approvedDate?: string;
-  approvalStatus?: 'Approved' | 'Pending Approval' | 'Under Review' | 'Declined';
-  digitalSignature?: string; // e.g. "s/ Umer Khayam" or Drawn signature data URL
-  digitalSignatureTimestamp?: string;
-  approvalNotes?: string;
-  denialReason?: string;
-  disbursementAccount?: string; // e.g. "Chase Operating ••8491"
-  purpose?: string; // e.g. "Family Relocation & Housing Deposit", "Professional PE License & Continuing Ed"
-  
+direction?: LoanDirection; // 'company_loaned_out' (default for company-issued loans) or 'company_borrowed'
+borrowerName?: string; // e.g. "Liam Scott", "Elena Rostova", "Syed Ahmed"
+borrowerRole?: string; // e.g. "Junior MEP Quantity Surveyor"
+borrowerEmail?: string;
+borrowerId?: string; // EMP-106, etc.
+repaymentMethod?: 'Payroll Deduction' | 'Direct Bank ACH' | 'Auto-Debit' | 'Check';
+
+// Application link
+applicationId?: string; // companyLoanApplications.id for pending/approved company loan requests
+
+// Approval metadata
+approvedBy?: string; // e.g. "Umer Khayam (CEO & Founder)" or "Sarah Jenkins (Financial Controller)"
+approvedDate?: string;
+approvalStatus?: 'Approved' | 'Pending Approval' | 'Under Review' | 'Declined';
+digitalSignature?: string; // e.g. "s/ Umer Khayam" or Drawn signature data URL
+digitalSignatureTimestamp?: string;
+approvalNotes?: string;
+denialReason?: string;
+disbursementAccount?: string; // e.g. "Chase Operating â€¢â€¢8491"
+purpose?: string;
   // Automated Overdue Notification Tracking
   lastOverdueAlertSent?: string; // ISO date of last notification
   overdueAlertDismissed?: boolean;

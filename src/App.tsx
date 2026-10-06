@@ -366,6 +366,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   // This hook must remain alongside the other hooks so React's hook order never changes.
   const [employeePortalRole, setEmployeePortalRole] = useState<PortalRole | null | undefined>(undefined);
   const [employeeWorkspaceId, setEmployeeWorkspaceId] = useState<string | null>(null);
+  const [companyWorkspaceId, setCompanyWorkspaceId] = useState<string | null>(null);
   const employeeOnly = employeePortalRole !== null && employeePortalRole !== undefined;
 
   useEffect(() => {
@@ -377,6 +378,13 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         if (!response.ok) throw new Error(payload.error || 'Unable to resolve portal access');
         const memberships = Array.isArray(payload.memberships) ? payload.memberships : [];
         const employeeMembership = memberships.find((membership: any) => membership.role === 'employee');
+        const companyMembership = memberships.find(
+          (membership: any) =>
+            membership.role !== 'employee' && membership.status === 'active',
+        );
+        if (companyMembership?.workspaceId) {
+          setCompanyWorkspaceId(companyMembership.workspaceId);
+        }
 	if (employeeMembership?.workspaceId) {
   setEmployeeWorkspaceId(employeeMembership.workspaceId);
 }
@@ -566,11 +574,11 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   const handleRecordLoanPayment = (
     payment: LoanPaymentRecord,
     updatedLoan: LoanItem,
-    outflowTxn: CashTransaction
+    transaction: CashTransaction
   ) => {
-    setLoanPayments((prev) => [payment, ...prev]);
+    setLoanPayments((prev) => prev.some((item) => item.id === payment.id) ? prev : [payment, ...prev]);
     setLoans((prev) => prev.map((l) => (l.id === updatedLoan.id ? updatedLoan : l)));
-    setTransactions((prev) => [outflowTxn, ...prev]);
+    setTransactions((prev) => prev.some((item) => item.id === transaction.id || item.referenceNumber === transaction.referenceNumber) ? prev : [transaction, ...prev]);
   };
 
   const handleAddLoan = (newLoan: LoanItem) => {
@@ -783,6 +791,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
             />
           ) : activeTab === 'loans' ? (
             <LoanManagementView
+              workspaceId={companyWorkspaceId}
               loans={loans}
               payments={loanPayments}
               employees={employees}

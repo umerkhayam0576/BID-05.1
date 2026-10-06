@@ -373,3 +373,69 @@ try {
     })
   }
 })
+
+workspaceRoutes.post('/invitations', async (req, res) => {
+  try {
+    const userId = requireUser(req)
+    const workspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId.trim() : ''
+    const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : ''
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+    const role = typeof req.body?.role === 'string' ? req.body.role.trim().toLowerCase() : ''
+    const department = typeof req.body?.department === 'string' ? req.body.department.trim() : ''
+    const portalRole = typeof req.body?.portalRole === 'string' ? req.body.portalRole.trim() : ''
+
+    if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' })
+    await requireWorkspaceRole(req, workspaceId, ['owner', 'admin', 'manager'])
+
+    if (!email) return res.status(400).json({ error: 'Email is required' })
+    if (!['employee', 'client'].includes(role)) return res.status(400).json({ error: 'Invalid invitation role' })
+
+    if (role === 'client' && (department || portalRole)) {
+      return res.status(400).json({ error: 'Department and portalRole are only valid for employee invitations' })
+    }
+
+    const token = randomBytes(32).toString('base64url')
+    const [invite] = await db.insert(workspaceInvitations).values({
+      workspaceId,
+      invitedByUserId: userId,
+      email,
+      role,
+      department: role === 'employee' && department ? department : null,
+      portalRole: role === 'employee' && portalRole ? portalRole : null,
+      name: name || null,
+      tokenHash: hashSessionToken(token),
+      status: 'pending',
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    }).returning({
+      id: workspaceInvitations.id,
+      workspaceId: workspaceInvitations.workspaceId,
+      email: workspaceInvitations.email,
+      role: workspaceInvitations.role,
+      department: workspaceInvitations.department,
+      portalRole: workspaceInvitations.portalRole,
+      name: workspaceInvitations.name,
+      status: workspaceInvitations.status,
+      expiresAt: workspaceInvitations.expiresAt,
+      createdAt: workspaceInvitations.createdAt,
+    })
+
+    return res.status(201).json({ invitation: invite, inviteToken: token })
+  } catch (error: any) {
+    const status = error?.status === 403 ? 403 : 500
+    return res.status(status).json({ error: error?.message || 'Failed to create invitation' })
+  }
+})
+
+workspaceRoutes.get('/invitations', async (req, res) => {
+  try {
+    const userId = requireUser(req)
+    const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId.trim() : ''
+    if (!workspaceId) return res.status(400).json( { error: 'workspaceId is required' })
+    const membership = await getMembership(userId, workspaceId)
+    if (!membership) return res.status(403).json({ error: 'Workspace access denied' })
+    const rows = await db.select({ id: workspaceInvitations.id, workspaceId: workspaceInvitations.workspaceId, invitedByUserId: workspaceInvitations.invitedByUserId, email: workspaceInvitations.email, role: workspaceInvitations.role, department: workspaceInvitations.department, portalRole: workspaceInvitations.portalRole, name: workspaceInvitations.name, status: workspaceInvitations.status, expiresAt: workspaceInvitations.expiresAt, acceptedByUserId: workspaceInvitations.acceptedByUserId, acceptedAt: workspaceInvitations.acceptedAt, createdAt: workspaceInvitations.createdAt }).from(workspaceInvitations).where(eq(workspaceInvitations.workspaceId, workspaceId)).orderBy(desc(workspaceInvitations.createdAt))
+    return res.json( { invitations: rows })
+  } catch (error: any) {
+    return res.status(500).json( { error: error?.message || 'Failed to fetch invitations' })
+  }
+})

@@ -30,13 +30,15 @@ import {
   VolumeX,
   ExternalLink,
   RefreshCw,
-  FileText
+  FileText,
+  Settings
 } from 'lucide-react';
 import { LoanItem, LoanPaymentRecord, CashTransaction, EmployeeItem, LoanPaymentReceiptData } from '../../types';
 import { LoanPaymentReceiptModal } from '../loans/LoanPaymentReceiptModal';
 import { downloadLoanPaymentPdf } from '../../utils/loanPdfReceiptGenerator';
 
 interface LoanManagementViewProps {
+  workspaceId?: string | null;
   loans: LoanItem[];
   payments: LoanPaymentRecord[];
   employees?: EmployeeItem[];
@@ -44,8 +46,29 @@ interface LoanManagementViewProps {
   onAddLoan: (loan: LoanItem) => void;
   onUpdateLoan?: (loan: LoanItem) => void;
 }
+interface CompanyLoanApplication {
+  id: string;
+  workspaceId: string;
+  applicantUserId: string;
+  personalFinanceId: string;
+  applicantName: string;
+  applicantRole: string;
+  requestedAmount: string | number;
+  requestedTermMonths?: number | null;
+  purpose: string;
+  repaymentMethod?: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'needs_information';
+  eligibilityStatus?: string;
+  eligibilitySnapshot?: Record<string, unknown>;
+  decisionNotes?: string | null;
+  decidedByUserId?: string | null;
+  decidedAt?: string | null;
+  companyLoanId?: string | null;
+  metadata?: Record<string, unknown>;
+}
 
 export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
+  workspaceId,
   loans,
   payments,
   employees = [],
@@ -58,13 +81,41 @@ export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'Active' | 'Pending Approval' | 'Paid Off'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [selectedLoanId, setSelectedLoanId] = useState<string>(
-    loans.find(l => l.direction === 'company_loaned_out')?.id || loans[0]?.id || ''
-  );
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [isNewLoanModalOpen, setIsNewLoanModalOpen] = useState(false);
-  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
-  const [loanToApprove, setLoanToApprove] = useState<LoanItem | null>(null);
+const [loanApplications, setLoanApplications] = useState<CompanyLoanApplication[]>([]);
+const [loanApplicationsLoading, setLoanApplicationsLoading] = useState(false);
+
+// Company loan eligibility rules - editable from the portal.
+const [loanEligibilityPolicies, setLoanEligibilityPolicies] = useState<any[]>([]);
+const [eligibilityRulesLoading, setEligibilityRulesLoading] = useState(false);
+const [eligibilityRulesSaving, setEligibilityRulesSaving] = useState<string | null>(null);
+const [eligibilityRulesMessage, setEligibilityRulesMessage] = useState('');
+const [showEligibilityRules, setShowEligibilityRules] = useState(false);
+
+// Company finance accounts used for loan disbursements and repayments.
+type CompanyFinanceAccount = {
+  id: string;
+  name: string;
+  accountType: string;
+  currency: string;
+  openingBalance: string | number;
+  currentBalance: string | number;
+  status?: string;
+};
+
+const [companyFinanceAccounts, setCompanyFinanceAccounts] = useState<CompanyFinanceAccount[]>([]);
+const [companyFinanceAccountsLoading, setCompanyFinanceAccountsLoading] = useState(false);
+const [selectedDisbursementAccountId, setSelectedDisbursementAccountId] = useState('');
+const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState('');
+const [loanActionLoading, setLoanActionLoading] = useState(false);
+const [loanActionMessage, setLoanActionMessage] = useState('');
+
+const [selectedLoanId, setSelectedLoanId] = useState<string>(
+  loans.find(l => l.direction === 'company_loaned_out')?.id || loans[0]?.id || ''
+);
+const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+const [isNewLoanModalOpen, setIsNewLoanModalOpen] = useState(false);
+const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+const [loanToApprove, setLoanToApprove] = useState<LoanItem | null>(null);
   const [approvalOfficial, setApprovalOfficial] = useState<string>('Umer Khayam (CEO & Founder)');
   const [approvalSignatureType, setApprovalSignatureType] = useState<'typed' | 'drawn'>('typed');
   const [typedSignature, setTypedSignature] = useState<string>('s/ Umer Khayam');
@@ -145,6 +196,206 @@ export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
   const totalCommercialMonthlyDebt = commercialLoans.reduce((sum, l) => sum + l.monthlyPayment, 0);
 
   const activeLoan = loans.find((l) => l.id === selectedLoanId) || displayedLoans[0] || loans[0];
+    const loadCompanyLoanApplications = async () => {
+    if (!workspaceId) {
+      setLoanApplications([]);
+      return;
+    }
+
+    try {
+      setLoanApplicationsLoading(true);
+
+      const response = await fetch(
+        `/api/finance/company/loan-applications?workspaceId=${encodeURIComponent(workspaceId)}`,
+        {
+          credentials: 'include',
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData?.error || 'Unable to load company loan applications.',
+        );
+      }
+
+      const applications = await response.json();
+
+      setLoanApplications(
+        Array.isArray(applications) ? applications : [],
+      );
+    } catch (error) {
+      console.error(
+        'Failed to load company loan applications:',
+        error,
+      );
+      setLoanApplications([]);
+      setLoanActionMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load company loan applications.',
+      );
+    } finally {
+      setLoanApplicationsLoading(false);
+    }
+  };
+
+
+const loadLoanEligibilityPolicies = async () => {
+    try {
+      if (!workspaceId) {
+        setEligibilityRulesMessage('Company workspace is not available.');
+        return;
+      }
+
+      setEligibilityRulesLoading(true);
+      setEligibilityRulesMessage('');
+
+      const response = await fetch(
+        `/api/finance/company/loan-eligibility/policies?workspaceId=${encodeURIComponent(workspaceId)}`,
+      );
+
+      if (!response.ok) {
+        throw new Error('Unable to load loan eligibility rules');
+      }
+
+      const policies = await response.json();
+      setLoanEligibilityPolicies(Array.isArray(policies) ? policies : []);
+    } catch (error) {
+      console.error('Failed to load loan eligibility policies:', error);
+      setEligibilityRulesMessage('Unable to load eligibility rules.');
+    } finally {
+      setEligibilityRulesLoading(false);
+    }
+  };
+
+  const saveLoanEligibilityPolicy = async (policy: any) => {
+    try {
+      if (!workspaceId) {
+        setEligibilityRulesMessage('Company workspace is not available.');
+        return;
+      }
+
+      setEligibilityRulesSaving(policy.personType);
+      setEligibilityRulesMessage('');
+
+      const response = await fetch(
+        `/api/finance/company/loan-eligibility/policies/${policy.personType}?workspaceId=${encodeURIComponent(workspaceId)}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(policy),
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData?.error || 'Unable to save eligibility rules',
+        );
+      }
+
+      const savedPolicy = await response.json();
+
+      setLoanEligibilityPolicies((current) =>
+        current.map((item) =>
+          item.personType === savedPolicy.personType
+            ? savedPolicy
+            : item,
+        ),
+      );
+
+      setEligibilityRulesMessage(
+        `${policy.personType === 'employee' ? 'Employee' : 'Partner'} rules saved successfully.`,
+      );
+    } catch (error) {
+      console.error('Failed to save loan eligibility policy:', error);
+      setEligibilityRulesMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to save eligibility rules.',
+      );
+    } finally {
+      setEligibilityRulesSaving(null);
+    }
+  };
+
+  useEffect(() => {
+    if (showEligibilityRules) {
+      loadLoanEligibilityPolicies();
+    }
+  }, [showEligibilityRules]);
+
+useEffect(() => {
+  if (!workspaceId) {
+    setCompanyFinanceAccounts([]);
+    setSelectedDisbursementAccountId('');
+    setSelectedPaymentAccountId('');
+    return;
+  }
+
+  let cancelled = false;
+
+  const loadCompanyFinanceAccounts = async () => {
+    setCompanyFinanceAccountsLoading(true);
+
+    try {
+      const response = await fetch(
+        `/api/finance/company/accounts?workspaceId=${encodeURIComponent(workspaceId)}`,
+        {
+          credentials: 'include',
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load company finance accounts (${response.status})`,
+        );
+      }
+
+      const accounts = await response.json();
+
+      if (cancelled) return;
+
+      const accountRows = Array.isArray(accounts) ? accounts : [];
+      setCompanyFinanceAccounts(accountRows);
+
+      const firstAccountId = accountRows[0]?.id || '';
+      setSelectedDisbursementAccountId((current) =>
+        current || firstAccountId,
+      );
+      setSelectedPaymentAccountId((current) =>
+        current || firstAccountId,
+      );
+    } catch (error) {
+      if (cancelled) return;
+
+      console.error('Failed to load company finance accounts:', error);
+      setCompanyFinanceAccounts([]);
+      setLoanActionMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load company finance accounts.',
+      );
+    } finally {
+      if (!cancelled) {
+        setCompanyFinanceAccountsLoading(false);
+      }
+    }
+  };
+
+  loadCompanyFinanceAccounts();
+
+  return () => {
+    cancelled = true;
+  };
+}, [workspaceId]);
+
+  useEffect(() => {
+    loadCompanyLoanApplications();
+  }, [workspaceId]);
 
   // Payoff calculation simulation for selected loan
   const simBalance = activeLoan ? activeLoan.currentBalance : 0;
@@ -262,159 +513,354 @@ export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
     ctx.stroke();
   };
 
-  // Execute approval of a loan
-  const handleApproveLoan = (loan: LoanItem) => {
-    const now = new Date();
-    const timestampStr = `${now.toISOString().slice(0, 10)} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-
-    let finalSig = '';
-    if (approvalSignatureType === 'drawn' && drawnSignatureData) {
-      finalSig = drawnSignatureData;
-    } else if (typedSignature.trim()) {
-      finalSig = typedSignature.trim();
+  // Execute approval of a loan application
+  const handleApproveLoan = async (loan: LoanItem) => {
+    if (!workspaceId) {
+      setLoanActionMessage('Workspace is required to approve a loan.');
+      return;
     }
 
-    const updated: LoanItem = {
-      ...loan,
-      status: 'Active',
-      approvalStatus: 'Approved',
-      approvedBy: approvalOfficial,
-      approvedDate: now.toISOString().slice(0, 10),
-      digitalSignature: finalSig || undefined,
-      digitalSignatureTimestamp: finalSig ? timestampStr : undefined,
-      approvalNotes: approvalNotes.trim() || undefined,
-    };
-
-    if (onUpdateLoan) {
-      onUpdateLoan(updated);
+    const applicationId = loan.applicationId;
+    if (!applicationId) {
+      setLoanActionMessage(
+        'This loan is not linked to a loan application and cannot be approved from this workflow.',
+      );
+      return;
     }
-    setIsApprovalModalOpen(false);
-    setLoanToApprove(null);
+
+    if (!selectedDisbursementAccountId) {
+      setLoanActionMessage('Please select a company account for disbursement.');
+      return;
+    }
+
+    const decisionNotes = approvalNotes.trim();
+
+    try {
+      setLoanActionLoading(true);
+      setLoanActionMessage('');
+
+      const response = await fetch(
+        `/api/finance/company/loan-applications/${encodeURIComponent(applicationId)}/decision?workspaceId=${encodeURIComponent(workspaceId)}`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            decision: 'approved',
+            disbursementAccountId: selectedDisbursementAccountId,
+            decisionNotes: decisionNotes || undefined,
+          }),
+        },
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error || 'Unable to approve the loan application.',
+        );
+      }
+
+      setLoanActionMessage('Loan approved and disbursed successfully.');
+
+      await loadCompanyLoanApplications();
+
+      setIsApprovalModalOpen(false);
+      setLoanToApprove(null);
+      setLoanApplicationToApprove(null);
+    } catch (error) {
+      console.error('Failed to approve company loan:', error);
+
+      setLoanActionMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to approve the loan application.',
+      );
+    } finally {
+      setLoanActionLoading(false);
+    }
   };
 
-  const handleDeclineLoan = (loan: LoanItem) => {
-    const updated: LoanItem = {
-      ...loan,
-      status: 'Rejected',
-      approvalStatus: 'Declined',
-      denialReason: denialReason.trim() || 'Governance criteria not met.',
-    };
-    if (onUpdateLoan) {
-      onUpdateLoan(updated);
+  const handleDeclineLoan = async (loan: LoanItem) => {
+    if (!workspaceId) {
+      setLoanActionMessage('Workspace is required to decline a loan.');
+      return;
     }
-    setIsApprovalModalOpen(false);
-    setLoanToApprove(null);
-  };
 
-  const handlePaymentSubmit = (e: React.FormEvent) => {
+    const applicationId = loan.applicationId;
+    if (!applicationId) {
+      setLoanActionMessage(
+        'This loan is not linked to a loan application and cannot be declined from this workflow.',
+      );
+      return;
+    }
+
+    const decisionNotes =
+      denialReason.trim() || 'Governance criteria not met.';
+
+    try {
+      setLoanActionLoading(true);
+      setLoanActionMessage('');
+
+      const response = await fetch(
+        `/api/finance/company/loan-applications/${encodeURIComponent(applicationId)}/decision?workspaceId=${encodeURIComponent(workspaceId)}`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            decision: 'rejected',
+            decisionNotes,
+          }),
+        },
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error || 'Unable to decline the loan application.',
+        );
+      }
+
+      setLoanActionMessage('Loan application declined.');
+
+      await loadCompanyLoanApplications();
+
+      setIsApprovalModalOpen(false);
+      setLoanToApprove(null);
+      setLoanApplicationToApprove(null);
+    } catch (error) {
+      console.error('Failed to decline company loan:', error);
+
+      setLoanActionMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to decline the loan application.',
+      );
+    } finally {
+      setLoanActionLoading(false);
+    }
+  };
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const amountNum = parseFloat(payAmount);
-    if (isNaN(amountNum) || amountNum <= 0) return;
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setLoanActionMessage('Enter a valid payment amount.');
+      return;
+    }
+
+    if (!workspaceId) {
+      setLoanActionMessage('Workspace is required to record a payment.');
+      return;
+    }
+
+    if (!selectedPaymentAccountId) {
+      setLoanActionMessage('Please select the company account receiving the payment.');
+      return;
+    }
 
     const targetLoan = loans.find((l) => l.id === payLoanId);
-    if (!targetLoan) return;
+    if (!targetLoan) {
+      setLoanActionMessage('Loan not found.');
+      return;
+    }
 
-    const isCompanyLoanedOut = targetLoan.direction === 'company_loaned_out' || 
-      targetLoan.type === 'Employee Loan' || 
-      targetLoan.type === 'Partner Advance' || 
-      targetLoan.type === 'Emergency Hardship' || 
+    const isCompanyLoanedOut =
+      targetLoan.direction === 'company_loaned_out' ||
+      targetLoan.type === 'Employee Loan' ||
+      targetLoan.type === 'Partner Advance' ||
+      targetLoan.type === 'Emergency Hardship' ||
       targetLoan.type === 'Tool & Equipment Advance';
 
-    // Estimate interest portion (monthly rate * balance)
-    const monthlyRate = (targetLoan.interestRate || 0) / 100 / 12;
-    const interestPortion = Math.min(amountNum * 0.4, targetLoan.currentBalance * monthlyRate);
-    const principalPortion = amountNum - interestPortion;
-    const newBalance = Math.max(0, targetLoan.currentBalance - principalPortion);
+    if (!isCompanyLoanedOut) {
+      setLoanActionMessage(
+        'Commercial debt payments are not handled by the company employee-loan repayment workflow yet.',
+      );
+      return;
+    }
 
-    const paymentRecord: LoanPaymentRecord = {
-      id: `LPMT-${isCompanyLoanedOut ? 'EMP-' : ''}${Math.floor(100 + Math.random() * 900)}`,
-      loanId: targetLoan.id,
-      loanName: targetLoan.name,
-      date: new Date().toISOString().slice(0, 10),
-      amount: amountNum,
-      principalPaid: Math.round(principalPortion),
-      interestPaid: Math.round(interestPortion),
-      remainingBalance: Math.round(newBalance),
-      method: payMethod,
-    };
+    try {
+      setLoanActionLoading(true);
+      setLoanActionMessage('');
 
-    const updatedLoan: LoanItem = {
-      ...targetLoan,
-      currentBalance: Math.round(newBalance),
-      status: newBalance === 0 ? 'Paid Off' : targetLoan.status,
-    };
+      const paymentDate = new Date().toISOString().slice(0, 10);
 
-    // If an employee pays the company, it's an INFLOW into company operating account
-    // If the company pays a bank, it's an OUTFLOW
-    const txn: CashTransaction = {
-      id: `TXN-2024-${Math.floor(3000 + Math.random() * 7000)}`,
-      date: new Date().toISOString().slice(0, 10),
-      description: isCompanyLoanedOut
-        ? `Employee Loan Repayment Received - ${targetLoan.borrowerName || targetLoan.name} (${payMethod})`
-        : `Commercial Debt Service Outflow - ${targetLoan.name} (Prin $${Math.round(principalPortion)} + Int $${Math.round(interestPortion)})`,
-      category: isCompanyLoanedOut ? 'Employee Loan Recovery' : 'Debt Service & Loans',
-      counterparty: isCompanyLoanedOut ? (targetLoan.borrowerName || 'Staff Member') : targetLoan.lender,
-      type: isCompanyLoanedOut ? 'inflow' : 'outflow',
-      amount: amountNum,
-      status: 'reconciled',
-      paymentMethod: payMethod,
-      account: 'Chase Operating ••8491',
-      referenceNumber: paymentRecord.id,
-    };
+      const response = await fetch(
+        `/api/finance/company/loans/${encodeURIComponent(targetLoan.id)}/payments?workspaceId=${encodeURIComponent(workspaceId)}`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            paymentAmount: amountNum,
+            principalAmount: amountNum,
+            interestAmount: 0,
+            paymentDate,
+            paymentMethod: payMethod,
+            accountId: selectedPaymentAccountId,
+            notes: targetLoan.notes || undefined,
+          }),
+        },
+      );
 
-    const receiptNumber = `RCP-${paymentRecord.id}`;
-    const receiptData: LoanPaymentReceiptData = {
-      receiptNumber,
-      paymentId: paymentRecord.id,
-      transactionId: txn.id,
-      paymentDate: paymentRecord.date,
-      timestamp: new Date().toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-      }),
-      loanId: targetLoan.id,
-      loanName: targetLoan.name,
-      loanType: targetLoan.type,
-      direction: targetLoan.direction || (isCompanyLoanedOut ? 'company_loaned_out' : 'company_borrowed'),
-      borrowerName: targetLoan.borrowerName || (isCompanyLoanedOut ? 'Staff Member' : 'Bid Exact LLC'),
-      borrowerRole: targetLoan.borrowerRole || (isCompanyLoanedOut ? 'Employee / Specialist' : 'Commercial Borrower'),
-      borrowerEmail: targetLoan.borrowerEmail || 'finance@bidexact.com',
-      borrowerId: targetLoan.borrowerId || 'EMP-106',
-      lender: targetLoan.lender || 'Bid Exact LLC',
-      amount: amountNum,
-      principalPaid: Math.round(principalPortion),
-      interestPaid: Math.round(interestPortion),
-      previousBalance: targetLoan.currentBalance,
-      remainingBalance: Math.round(newBalance),
-      paymentMethod: payMethod,
-      disbursementAccount: txn.account || 'Chase Operating ••8491',
-      reconciledStatus: 'POSTED & RECONCILED',
-      notes: targetLoan.notes,
-      authorizedOfficer: 'Umer Khayam (CEO & Founder)',
-    };
+      const data = await response.json().catch(() => ({}));
 
-    const enhancedPaymentRecord: LoanPaymentRecord = {
-      ...paymentRecord,
-      receiptNumber,
-      transactionId: txn.id,
-      borrowerName: targetLoan.borrowerName,
-    };
-
-    onRecordPayment(enhancedPaymentRecord, updatedLoan, txn);
-    setIsPaymentModalOpen(false);
-    setPayAmount('');
-
-    // Automatically generate and display the official PDF receipt
-    if (autoGeneratePdfReceipt) {
-      setActiveReceiptData(receiptData);
-      setIsReceiptModalOpen(true);
-      try {
-        downloadLoanPaymentPdf(receiptData);
-      } catch (pdfErr) {
-        console.warn('PDF automatic download trigger error:', pdfErr);
+      if (!response.ok) {
+        throw new Error(
+          data?.error || 'Unable to record the company loan payment.',
+        );
       }
+
+      const payment = data?.payment;
+      const transaction = data?.transaction;
+      const balances = data?.balances;
+
+      const previousBalance = Number(
+        balances?.previousLoanBalance ??
+          targetLoan.currentBalance ??
+          0,
+      );
+
+      const remainingBalance = Number(
+        balances?.loanBalance ??
+          Math.max(0, previousBalance - amountNum),
+      );
+
+      const principalPaid = Number(
+        payment?.principalAmount ?? amountNum,
+      );
+
+      const interestPaid = Number(
+        payment?.interestAmount ?? 0,
+      );
+
+      const paymentId =
+        payment?.id ||
+        `LPMT-EMP-${Date.now()}`;
+
+      const transactionId =
+        transaction?.id ||
+        `TXN-${Date.now()}`;
+
+      const paymentRecord: LoanPaymentRecord = {
+        id: paymentId,
+        loanId: targetLoan.id,
+        loanName: targetLoan.name,
+        date: paymentDate,
+        amount: amountNum,
+        principalPaid: Math.round(principalPaid),
+        interestPaid: Math.round(interestPaid),
+        remainingBalance: Math.round(remainingBalance),
+        method: payMethod,
+        transactionId,
+        borrowerName: targetLoan.borrowerName,
+      };
+
+      const updatedLoan: LoanItem = {
+        ...targetLoan,
+        currentBalance: Math.round(remainingBalance),
+        status: remainingBalance === 0 ? 'Paid Off' : targetLoan.status,
+      };
+
+      const accountName =
+        companyFinanceAccounts.find(
+          (account) => account.id === selectedPaymentAccountId,
+        )?.name || 'Company Finance Account';
+
+      const txn: CashTransaction = {
+        id: transactionId,
+        date: paymentDate,
+        description: `Employee Loan Repayment Received - ${
+          targetLoan.borrowerName || targetLoan.name
+        } (${payMethod})`,
+        category: 'Employee Loan Recovery',
+        counterparty: targetLoan.borrowerName || 'Staff Member',
+        type: 'inflow',
+        amount: amountNum,
+        status: 'reconciled',
+        paymentMethod: payMethod,
+        account: accountName,
+        referenceNumber: paymentId,
+      };
+
+      const receiptNumber =
+        payment?.receiptNumber || `RCP-${paymentId}`;
+
+      const receiptData: LoanPaymentReceiptData = {
+        receiptNumber,
+        paymentId,
+        transactionId,
+        paymentDate,
+        timestamp: new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+        }),
+        loanId: targetLoan.id,
+        loanName: targetLoan.name,
+        loanType: targetLoan.type,
+        direction: 'company_loaned_out',
+        borrowerName: targetLoan.borrowerName || 'Staff Member',
+        borrowerRole:
+          targetLoan.borrowerRole || 'Employee / Specialist',
+        borrowerEmail:
+          targetLoan.borrowerEmail || 'finance@bidexact.com',
+        borrowerId:
+          targetLoan.borrowerId || 'EMP-106',
+        lender: 'Bid Exact LLC',
+        amount: amountNum,
+        principalPaid: Math.round(principalPaid),
+        interestPaid: Math.round(interestPaid),
+        previousBalance: Math.round(previousBalance),
+        remainingBalance: Math.round(remainingBalance),
+        paymentMethod: payMethod,
+        disbursementAccount: accountName,
+        reconciledStatus: 'POSTED & RECONCILED',
+        notes: targetLoan.notes,
+        authorizedOfficer: 'Umer Khayam (CEO & Founder)',
+      };
+
+      onRecordPayment(paymentRecord, updatedLoan, txn);
+
+      setLoanActionMessage('Loan payment recorded successfully.');
+      setIsPaymentModalOpen(false);
+      setPayAmount('');
+
+      if (autoGeneratePdfReceipt) {
+        setActiveReceiptData(receiptData);
+        setIsReceiptModalOpen(true);
+
+        try {
+          downloadLoanPaymentPdf(receiptData);
+        } catch (pdfErr) {
+          console.warn(
+            'PDF automatic download trigger error:',
+            pdfErr,
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        'Failed to record company loan payment:',
+        error,
+      );
+
+      setLoanActionMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to record the company loan payment.',
+      );
+    } finally {
+      setLoanActionLoading(false);
     }
   };
 
@@ -573,6 +1019,13 @@ export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
             <UserCheck className="w-4 h-4 text-[#38bdf8]" />
             <span>Issue Loan to Person / Employee</span>
           </button>
+          <button
+            onClick={() => setShowEligibilityRules((current) => !current)}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            <Settings className="h-4 w-4" />
+            <span>Eligibility Rules</span>
+          </button>
 
           <button
             onClick={() => {
@@ -589,7 +1042,281 @@ export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
             <span>Record Monthly Payment</span>
           </button>
         </div>
-      </div>
+            </div>
+
+      {/* LOAN ELIGIBILITY RULES PANEL */}
+      {showEligibilityRules && (
+        <div className="mb-4 rounded-xl border border-[#222a3d] bg-[#131b2e] p-5 space-y-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-white">
+                Loan Eligibility Rules
+              </h3>
+              <p className="text-xs text-[#86948a] mt-1">
+                Configure eligibility limits for employees and partners.
+              </p>
+            </div>
+
+            {eligibilityRulesLoading && (
+              <span className="text-xs text-[#86948a]">
+                Loading...
+              </span>
+            )}
+          </div>
+
+          {eligibilityRulesMessage && (
+            <div className="rounded-lg border border-[#38bdf8]/30 bg-[#38bdf8]/10 px-3 py-2 text-xs text-[#b9e9ff]">
+              {eligibilityRulesMessage}
+            </div>
+          )}
+
+          {!eligibilityRulesLoading &&
+            loanEligibilityPolicies.length === 0 && (
+              <div className="rounded-lg border border-[#222a3d] bg-[#0f1627] p-4 text-sm text-[#86948a]">
+                No eligibility rules were returned for this company.
+              </div>
+            )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            {loanEligibilityPolicies.map((policy) => (
+              <div
+                key={policy.personType}
+                className="rounded-lg border border-[#222a3d] bg-[#0f1627] p-4 space-y-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-white">
+                      {policy.personType === 'employee'
+                        ? 'Employee Rules'
+                        : 'Partner Rules'}
+                    </h4>
+
+                    <p className="text-[11px] text-[#86948a] mt-1">
+                      {policy.personType === 'employee'
+                        ? 'Rules for company employees.'
+                        : 'Rules for company partners.'}
+                    </p>
+                  </div>
+
+                  <span className="rounded-full border border-[#4edea3]/30 bg-[#4edea3]/10 px-2 py-1 text-[10px] text-[#4edea3]">
+                    {policy.status || 'active'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="text-xs text-[#aeb8c8]">
+                    Minimum tenure (days)
+                    <input
+                      type="number"
+                      min="0"
+                      value={policy.minimumTenureDays ?? 0}
+                      onChange={(e) =>
+                        setLoanEligibilityPolicies((items) =>
+                          items.map((item) =>
+                            item.personType === policy.personType
+                              ? {
+                                  ...item,
+                                  minimumTenureDays: Number(
+                                    e.target.value,
+                                  ),
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                      className="mt-1 w-full rounded-md border border-[#30394f] bg-[#171f33] px-3 py-2 text-sm text-white outline-none focus:border-[#38bdf8]"
+                    />
+                  </label>
+
+                  <label className="text-xs text-[#aeb8c8]">
+                    Maximum loan amount
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={policy.maximumLoanAmount ?? 0}
+                      onChange={(e) =>
+                        setLoanEligibilityPolicies((items) =>
+                          items.map((item) =>
+                            item.personType === policy.personType
+                              ? {
+                                  ...item,
+                                  maximumLoanAmount: e.target.value,
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                      className="mt-1 w-full rounded-md border border-[#30394f] bg-[#171f33] px-3 py-2 text-sm text-white outline-none focus:border-[#38bdf8]"
+                    />
+                  </label>
+
+                  <label className="text-xs text-[#aeb8c8]">
+                    Salary / income multiple
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={policy.salaryMultiple ?? ''}
+                      placeholder="Not required"
+                      onChange={(e) =>
+                        setLoanEligibilityPolicies((items) =>
+                          items.map((item) =>
+                            item.personType === policy.personType
+                              ? {
+                                  ...item,
+                                  salaryMultiple:
+                                    e.target.value === ''
+                                      ? null
+                                      : e.target.value,
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                      className="mt-1 w-full rounded-md border border-[#30394f] bg-[#171f33] px-3 py-2 text-sm text-white outline-none focus:border-[#38bdf8]"
+                    />
+                  </label>
+
+                  <label className="text-xs text-[#aeb8c8]">
+                    Maximum active loans
+                    <input
+                      type="number"
+                      min="1"
+                      value={policy.maximumActiveLoans ?? 1}
+                      onChange={(e) =>
+                        setLoanEligibilityPolicies((items) =>
+                          items.map((item) =>
+                            item.personType === policy.personType
+                              ? {
+                                  ...item,
+                                  maximumActiveLoans: Math.max(
+                                    1,
+                                    Number(e.target.value),
+                                  ),
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                      className="mt-1 w-full rounded-md border border-[#30394f] bg-[#171f33] px-3 py-2 text-sm text-white outline-none focus:border-[#38bdf8]"
+                    />
+                  </label>
+
+                  <label className="text-xs text-[#aeb8c8] sm:col-span-2">
+                    Minimum gap between loans (days)
+                    <input
+                      type="number"
+                      min="0"
+                      value={policy.minimumGapDays ?? 0}
+                      onChange={(e) =>
+                        setLoanEligibilityPolicies((items) =>
+                          items.map((item) =>
+                            item.personType === policy.personType
+                              ? {
+                                  ...item,
+                                  minimumGapDays: Math.max(
+                                    0,
+                                    Number(e.target.value),
+                                  ),
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                      className="mt-1 w-full rounded-md border border-[#30394f] bg-[#171f33] px-3 py-2 text-sm text-white outline-none focus:border-[#38bdf8]"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label className="flex items-center gap-2 rounded-md border border-[#30394f] bg-[#171f33] px-3 py-2 text-xs text-[#dbe3ef]">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(policy.allowProbation)}
+                      onChange={(e) =>
+                        setLoanEligibilityPolicies((items) =>
+                          items.map((item) =>
+                            item.personType === policy.personType
+                              ? {
+                                  ...item,
+                                  allowProbation: e.target.checked,
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                      className="h-4 w-4"
+                    />
+                    Allow probation
+                  </label>
+
+                  <label className="flex items-center gap-2 rounded-md border border-[#30394f] bg-[#171f33] px-3 py-2 text-xs text-[#dbe3ef]">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(policy.requireActiveStatus)}
+                      onChange={(e) =>
+                        setLoanEligibilityPolicies((items) =>
+                          items.map((item) =>
+                            item.personType === policy.personType
+                              ? {
+                                  ...item,
+                                  requireActiveStatus:
+                                    e.target.checked,
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                      className="h-4 w-4"
+                    />
+                    Require active status
+                  </label>
+
+                  <label className="flex items-center gap-2 rounded-md border border-[#30394f] bg-[#171f33] px-3 py-2 text-xs text-[#dbe3ef]">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(policy.allowAdminOverride)}
+                      onChange={(e) =>
+                        setLoanEligibilityPolicies((items) =>
+                          items.map((item) =>
+                            item.personType === policy.personType
+                              ? {
+                                  ...item,
+                                  allowAdminOverride:
+                                    e.target.checked,
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                      className="h-4 w-4"
+                    />
+                    Allow admin override
+                  </label>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      saveLoanEligibilityPolicy(policy)
+                    }
+                    disabled={
+                      eligibilityRulesSaving === policy.personType
+                    }
+                    className="rounded-md bg-[#38bdf8] px-4 py-2 text-xs font-semibold text-[#062033] hover:bg-[#67ccfa] disabled:opacity-50"
+                  >
+                    {eligibilityRulesSaving === policy.personType
+                      ? 'Saving...'
+                      : 'Save Rules'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards: Tailored for Company Loans to People vs Corporate Bank Debt */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -1712,13 +2439,18 @@ export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
                     >
                       Back to Approval
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeclineLoan(loanToApprove)}
-                      className="px-4 py-1.5 rounded bg-[#93000a] hover:bg-[#ba1a1a] text-white font-bold font-mono transition-colors"
-                    >
-                      Confirm Rejection
-                    </button>
+                   <button
+  type="button"
+  disabled={loanActionLoading}
+  onClick={() => handleDeclineLoan(loanToApprove)}
+  className={`px-4 py-1.5 rounded text-white font-bold font-mono transition-colors ${
+    loanActionLoading
+      ? 'bg-[#222a3d] text-[#64748b] cursor-not-allowed'
+      : 'bg-[#93000a] hover:bg-[#ba1a1a]'
+  }`}
+>
+  {loanActionLoading ? 'Processing...' : 'Confirm Rejection'}
+</button>
                   </div>
                 </div>
               ) : (
@@ -1740,6 +2472,41 @@ export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
                       Authorized under Corporate Benevolent Assistance &amp; Executive Lending Governance.
                     </div>
                   </div>
+{/* Company Disbursement Account */}
+<div className="bg-[#171f33] p-3.5 rounded border border-[#4edea3]/30">
+  <label className="block text-[11px] font-mono text-[#4edea3] mb-1 font-bold">
+    Disbursement Account:
+  </label>
+
+  {companyFinanceAccountsLoading ? (
+    <div className="text-[11px] text-[#86948a] font-mono py-2">
+      Loading company finance accounts...
+    </div>
+  ) : companyFinanceAccounts.length === 0 ? (
+    <div className="text-[11px] text-[#ffb4ab] font-mono py-2">
+      No company finance accounts are available. Create a company finance account before approving this loan.
+    </div>
+  ) : (
+    <>
+      <select
+        value={selectedDisbursementAccountId}
+        onChange={(e) => setSelectedDisbursementAccountId(e.target.value)}
+        className="w-full bg-[#0b1326] border border-[#222a3d] rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-[#4edea3]"
+      >
+        <option value="">Select company account...</option>
+        {companyFinanceAccounts.map((account) => (
+          <option key={account.id} value={account.id}>
+            {account.name} — {account.currency} {Number(account.currentBalance || 0).toLocaleString()}
+          </option>
+        ))}
+      </select>
+
+      <div className="text-[10px] text-[#86948a] mt-1">
+        The approved loan amount will be deducted from this company account.
+      </div>
+    </>
+  )}
+</div>
 
                   {/* Optional Digital Signature Section */}
                   <div className="p-3.5 rounded bg-[#0b1326] border border-[#222a3d] space-y-3">
@@ -1872,7 +2639,12 @@ export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        disabled={!signatureConsent}
+                        disabled={
+!signatureConsent ||
+!selectedDisbursementAccountId ||
+			  companyFinanceAccountsLoading ||
+loanActionLoading
+			}
                         onClick={() => handleApproveLoan(loanToApprove)}
                         className={`px-4 py-2 font-bold font-mono rounded shadow transition-all cursor-pointer flex items-center gap-1.5 ${
                           signatureConsent
