@@ -789,7 +789,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               employees={employees}
               onNavigateTab={handleSelectTab}
             />
-          ) : activeTab === 'loans' ? (
+          ) : (activeTab === 'loans' || activeTab === 'company-loans') ? (
             <LoanManagementView
               workspaceId={companyWorkspaceId}
               loans={loans}
