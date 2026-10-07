@@ -7,6 +7,15 @@ interface PeopleManagementProps {
 
 type PersonType = 'employee' | 'client';
 
+interface Department {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  managerUserId: string | null;
+  status: string;
+}
+
 interface Invitation {
   id: string;
   email: string;
@@ -22,14 +31,15 @@ interface Invitation {
 export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId, companyName }) => {
   const [personType, setPersonType] = useState<PersonType>('employee');
   const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successToken, setSuccessToken] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [department, setDepartment] = useState('services');
-  const [portalRole, setPortalRole] = useState('services');
+  const [department, setDepartment] = useState('');
+  const [portalRole, setPortalRole] = useState('');
 
   const loadInvitations = async () => {
     if (!workspaceId) return;
@@ -50,8 +60,32 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
     }
   };
 
+  const loadDepartments = async () => {
+    if (!workspaceId) return;
+
+    try {
+      const response = await fetch(
+        `/api/workspace/departments?workspaceId=${encodeURIComponent(workspaceId)}`,
+        { credentials: 'include' }
+      );
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to load departments');
+      }
+
+      setDepartments(
+        Array.isArray(payload.departments) ? payload.departments : []
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Unable to load departments');
+    }
+  };
+
   useEffect(() => {
     loadInvitations();
+    loadDepartments();
   }, [workspaceId]);
 
   const handleInvite = async (event: React.FormEvent) => {
@@ -82,8 +116,8 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
       setSuccessToken(payload.inviteToken || null);
       setName('');
       setEmail('');
-      setDepartment('services');
-      setPortalRole('services');
+      setDepartment('');
+      setPortalRole('');
       await loadInvitations();
     } catch (err: any) {
       setError(err?.message || 'Unable to create invitation');
@@ -110,7 +144,22 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
     }
   };
 
-  const visibleInvitations = invitations.filter((item) => item.role === personType);
+  const activeDepartments = departments.filter(
+    (item) => item.status === 'active'
+  );
+
+  useEffect(() => {
+    if (
+      activeDepartments.length > 0 &&
+      !activeDepartments.some((item) => item.id === department)
+    ) {
+      setDepartment(activeDepartments[0].id);
+    }
+  }, [activeDepartments, department]);
+
+  const visibleInvitations = invitations.filter(
+    (item) => item.role === personType
+  );
   const pendingCount = visibleInvitations.filter((item) => item.status === 'pending').length;
 
   if (!workspaceId) {
@@ -138,7 +187,7 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
             <button
               key={type}
               type="button"
-              onClick={() => { setPersonType(type); setSuccessToken(null); setError(null); if (type === 'employee') { setDepartment('services'); setPortalRole('services'); } }}
+              onClick={() => { setPersonType(type); setSuccessToken(null); setError(null); if (type === 'employee') { setDepartment(''); setPortalRole(''); } }}
               className={`px-4 py-2 rounded-md text-xs font-mono font-bold border transition-colors ${
                 personType === type
                   ? 'bg-[#4edea3]/10 border-[#4edea3]/50 text-[#4edea3]'
@@ -191,11 +240,11 @@ export const PeopleManagement: React.FC<PeopleManagementProps> = ({ workspaceId,
               <label className="block">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-[#bbcabf]">Department</span>
                 <select value={department} onChange={(e) => setDepartment(e.target.value)} className="mt-1.5 w-full rounded-md bg-[#0b1326] border border-[#222a3d] px-3 py-2.5 text-sm text-[#dae2fd] outline-none focus:border-[#4edea3]/60">
-                  <option value="finance">Finance / Accounting</option>
-                  <option value="hr">Human Resources</option>
-                  <option value="sales">Sales</option>
-                  <option value="services">Services</option>
-                  <option value="management">Management</option>
+                  {activeDepartments.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="block">

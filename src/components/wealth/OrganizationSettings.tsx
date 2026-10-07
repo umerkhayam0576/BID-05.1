@@ -52,7 +52,7 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
       setError(null);
 
       const response = await fetch(
-        `/api/workspaces/departments?workspaceId=${encodeURIComponent(
+        `/api/workspace/departments?workspaceId=${encodeURIComponent(
           workspaceId,
         )}`,
         {
@@ -138,8 +138,8 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
       const isEditing = Boolean(editingDepartment);
 
       const url = isEditing
-        ? `/api/workspaces/departments/${editingDepartment?.id}`
-        : '/api/workspaces/departments';
+        ? `/api/workspace/departments/${editingDepartment?.id}`
+        : '/api/workspace/departments';
 
       const method = isEditing ? 'PATCH' : 'POST';
 
@@ -207,7 +207,7 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
       setError(null);
 
       const response = await fetch(
-        `/api/workspaces/departments/${department.id}`,
+        `/api/workspace/departments/${department.id}`,
         {
           method: 'PATCH',
           credentials: 'include',
@@ -252,7 +252,7 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
       setError(null);
 
       const response = await fetch(
-        `/api/workspaces/departments/${department.id}?workspaceId=${encodeURIComponent(
+        `/api/workspace/departments/${department.id}?workspaceId=${encodeURIComponent(
           workspaceId,
         )}`,
         {
