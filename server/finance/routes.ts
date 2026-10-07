@@ -1080,10 +1080,10 @@ router.patch('/company/loan-applications/:id/decision', async (req, res) => {
     if (
       decision === 'approved' &&
       !eligibility.eligible &&
-      !(override && overrideReason)
+      (!eligibility.policy.allowAdminOverride || !override || !overrideReason)
     ) {
       throw new Error(
-        'Application is not eligible. An eligibility override reason is required.',
+        'Application is not eligible. An eligibility override is not allowed or a valid override reason is required.',
       )
     }
 
@@ -1205,7 +1205,26 @@ router.get('/company/loans', async (req, res) => {
     const rows = await db.select().from(companyLoans).where(
       eq(companyLoans.workspaceId, workspaceId),
     ).orderBy(desc(companyLoans.createdAt))
-    res.json(rows)
+    const applications = await db
+      .select({
+        id: companyLoanApplications.id,
+        companyLoanId: companyLoanApplications.companyLoanId,
+      })
+      .from(companyLoanApplications)
+      .where(eq(companyLoanApplications.workspaceId, workspaceId))
+
+    const applicationByLoanId = new Map(
+      applications
+        .filter((application) => application.companyLoanId)
+        .map((application) => [application.companyLoanId, application.id]),
+    )
+
+    res.json(
+      rows.map((loan) => ({
+        ...loan,
+        applicationId: applicationByLoanId.get(loan.id),
+      })),
+    )
   } catch (error) {
     handleRouteError(res, error)
   }

@@ -3,7 +3,89 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { createHash, randomBytes } from 'node:crypto'
 import { db } from '../db'
 import { getAuthenticatedUserId, getMembership, requireWorkspaceRole } from '../auth/middleware'
-import { entityInvitations, entityOwnerships, memberships, users, workspaces } from '../db/app-schema'
+import { companyLoanEligibilityPolicies, departments, entityInvitations, entityOwnerships, memberships, permissions, rolePermissions, roles, userRoles, users, workspaces } from '../db/app-schema'
+
+async function initializeWorkspaceRbac(tx: any, workspaceId: string, ownerUserId: string) {
+  const defaultDepartments = [
+    { name: 'Sales', code: 'SALES', description: 'Sales and business development' },
+    { name: 'Services', code: 'SERVICES', description: 'Service delivery and operations' },
+    { name: 'HR', code: 'HR', description: 'Human resources and people operations' },
+    { name: 'Accounting', code: 'ACCOUNTING', description: 'Accounting and financial operations' },
+    { name: 'Management', code: 'MANAGEMENT', description: 'Management and administration' },
+  ];
+
+  for (const department of defaultDepartments) {
+    await tx.insert(departments).values({
+      workspaceId,
+      name: department.name,
+      code: department.code,
+      description: department.description,
+      status: 'active',
+    }).onConflictDoNothing();
+  }
+
+  const defaultRoles = [
+    { name: 'Owner', code: 'OWNER' },
+    { name: 'Admin', code: 'ADMIN' },
+    { name: 'Sales', code: 'SALES' },
+    { name: 'Employee', code: 'EMPLOYEE' },
+    { name: 'Finance', code: 'FINANCE' },
+    { name: 'HR', code: 'HR' },
+    { name: 'Client', code: 'CLIENT' },
+  ];
+
+  for (const role of defaultRoles) {
+    await tx.insert(roles).values({
+      workspaceId,
+      name: role.name,
+      code: role.code,
+      scope: 'workspace',
+      isSystemRole: true,
+      status: 'active',
+    }).onConflictDoNothing();
+  }
+
+  const permissionRows = await tx.select({
+    id: permissions.id,
+    code: permissions.code,
+  }).from(permissions);
+
+  const permissionByCode = new Map(permissionRows.map((permission: any) => [permission.code, permission.id]));
+
+  const permissionCodesByRole: Record<string, string[]> = {
+    OWNER: permissionRows.map((permission: any) => permission.code),
+    ADMIN: permissionRows.map((permission: any) => permission.code),
+    SALES: ['clients.manage', 'clients.view', 'dashboard.view', 'projects.view', 'reports.view', 'sales.manage', 'sales.view'],
+    EMPLOYEE: ['dashboard.view', 'expenses.view', 'projects.view', 'services.view'],
+    FINANCE: ['dashboard.view', 'expenses.manage', 'expenses.view', 'finance.manage', 'finance.view', 'payouts.manage', 'payouts.view', 'payroll.manage', 'payroll.view', 'reports.view'],
+    HR: ['dashboard.view', 'employees.manage', 'employees.view', 'payroll.manage', 'payroll.view', 'reports.view'],
+    CLIENT: ['dashboard.view', 'projects.view', 'services.view'],
+  };
+
+  for (const [roleCode, permissionCodes] of Object.entries(permissionCodesByRole)) {
+    const roleRows = await tx.select({ id: roles.id }).from(roles).where(and(eq(roles.workspaceId, workspaceId), eq(roles.code, roleCode)));
+    const role = roleRows[0];
+    if (!role) throw new Error(`RBAC role ${roleCode} was not created`);
+
+    for (const permissionCode of permissionCodes) {
+      const permissionId = permissionByCode.get(permissionCode);
+      if (!permissionId) throw new Error(`RBAC permission ${permissionCode} is missing`);
+      await tx.insert(rolePermissions).values({
+        roleId: role.id,
+        permissionId,
+      }).onConflictDoNothing();
+    }
+
+    if (roleCode === 'OWNER') {
+      await tx.insert(userRoles).values({
+        workspaceId,
+        userId: ownerUserId,
+        roleId: role.id,
+        status: 'active',
+      }).onConflictDoNothing();
+    }
+  }
+}
 
 export const entityRoutes = Router()
 
@@ -103,6 +185,39 @@ entityRoutes.post('/', async (req, res) => {
         entityRole: 'owner',
         status: 'active',
       })
+
+      await initializeWorkspaceRbac(tx, entity.id, userId)
+
+      await tx.insert(companyLoanEligibilityPolicies).values([
+        {
+          workspaceId: entity.id,
+          personType: 'employee',
+          minimumTenureDays: 180,
+          maximumLoanAmount: '3000',
+          salaryMultiple: '3',
+          maximumActiveLoans: 1,
+          minimumGapDays: 90,
+          allowProbation: false,
+          requireActiveStatus: true,
+          allowAdminOverride: true,
+          status: 'active',
+          metadata: { source: 'workspace-default' },
+        },
+        {
+          workspaceId: entity.id,
+          personType: 'partner',
+          minimumTenureDays: 90,
+          maximumLoanAmount: '10000',
+          salaryMultiple: null,
+          maximumActiveLoans: 2,
+          minimumGapDays: 60,
+          allowProbation: true,
+          requireActiveStatus: true,
+          allowAdminOverride: true,
+          status: 'active',
+          metadata: { source: 'workspace-default' },
+        },
+      ])
 
       return entity
     })

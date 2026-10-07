@@ -83,6 +83,8 @@ export const LoanManagementView: React.FC<LoanManagementViewProps> = ({
 
 const [loanApplications, setLoanApplications] = useState<CompanyLoanApplication[]>([]);
 const [loanApplicationsLoading, setLoanApplicationsLoading] = useState(false);
+const [companyLoans, setCompanyLoans] = useState<LoanItem[]>([]);
+const [companyLoansLoading, setCompanyLoansLoading] = useState(false);
 
 // Company loan eligibility rules - editable from the portal.
 const [loanEligibilityPolicies, setLoanEligibilityPolicies] = useState<any[]>([]);
@@ -90,6 +92,20 @@ const [eligibilityRulesLoading, setEligibilityRulesLoading] = useState(false);
 const [eligibilityRulesSaving, setEligibilityRulesSaving] = useState<string | null>(null);
 const [eligibilityRulesMessage, setEligibilityRulesMessage] = useState('');
 const [showEligibilityRules, setShowEligibilityRules] = useState(false);
+
+// Workspace members available for tenant-scoped approval and governance actions.
+type WorkspaceMember = {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  membershipRole: string;
+  ownershipPercent?: string | null;
+  profitSharePercent?: string | null;
+  entityRole?: string | null;
+};
+
+const [workspaceMembers, setWorkspaceMembers] = useState<WorkspaceMember[]>([]);
+const [workspaceMembersLoading, setWorkspaceMembersLoading] = useState(false);
 
 // Company finance accounts used for loan disbursements and repayments.
 type CompanyFinanceAccount = {
@@ -116,9 +132,9 @@ const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 const [isNewLoanModalOpen, setIsNewLoanModalOpen] = useState(false);
 const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
 const [loanToApprove, setLoanToApprove] = useState<LoanItem | null>(null);
-  const [approvalOfficial, setApprovalOfficial] = useState<string>('Umer Khayam (CEO & Founder)');
+  const [approvalOfficial, setApprovalOfficial] = useState<string>('');
   const [approvalSignatureType, setApprovalSignatureType] = useState<'typed' | 'drawn'>('typed');
-  const [typedSignature, setTypedSignature] = useState<string>('s/ Umer Khayam');
+  const [typedSignature, setTypedSignature] = useState<string>('');
   const [drawnSignatureData, setDrawnSignatureData] = useState<string>('');
   const [approvalNotes, setApprovalNotes] = useState<string>('');
   const [denialReason, setDenialReason] = useState<string>('');
@@ -151,11 +167,11 @@ const [loanToApprove, setLoanToApprove] = useState<LoanItem | null>(null);
   const [newPrincipal, setNewPrincipal] = useState('');
   const [newRate, setNewRate] = useState('0'); // Default 0% for employee welfare loans
   const [newMonthlyPmt, setNewMonthlyPmt] = useState('');
-  const [newMaturity, setNewMaturity] = useState('2025-12-31');
+  const [newMaturity, setNewMaturity] = useState('');
   const [newRepaymentMethod, setNewRepaymentMethod] = useState<'Payroll Deduction' | 'Direct Bank ACH' | 'Auto-Debit' | 'Check'>('Payroll Deduction');
-  const [newApprovedBy, setNewApprovedBy] = useState('Umer Khayam (CEO & Founder)');
+  const [newApprovedBy, setNewApprovedBy] = useState('');
   const [newPurpose, setNewPurpose] = useState('');
-  const [newLenderName, setNewLenderName] = useState('Bid Exact LLC');
+  const [newLenderName, setNewLenderName] = useState('');
   const [requiresImmediateApproval, setRequiresImmediateApproval] = useState(true);
 
   // Separate employee loans (company loaned out) and commercial facilities (company borrowed)
@@ -167,7 +183,7 @@ const [loanToApprove, setLoanToApprove] = useState<LoanItem | null>(null);
     ? employeeLoans
     : activeTab === 'commercial_debt'
     ? commercialLoans
-    : loans
+    : companyLoans
   ).filter(l => {
     if (statusFilter !== 'ALL' && l.status !== statusFilter) return false;
     if (searchQuery) {
@@ -240,6 +256,44 @@ const [loanToApprove, setLoanToApprove] = useState<LoanItem | null>(null);
     }
   };
 
+
+  const loadCompanyLoans = async () => {
+    if (!workspaceId) {
+      setCompanyLoans([]);
+      return;
+    }
+
+    try {
+      setCompanyLoansLoading(true);
+
+      const response = await fetch(
+        `/api/finance/company/loans?workspaceId=${encodeURIComponent(workspaceId)}`,
+        {
+          credentials: 'include',
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData?.error || 'Unable to load company loans.',
+        );
+      }
+
+      const rows = await response.json();
+      setCompanyLoans(Array.isArray(rows) ? rows : []);
+    } catch (error) {
+      console.error('Failed to load company loans:', error);
+      setCompanyLoans([]);
+      setLoanActionMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load company loans.',
+      );
+    } finally {
+      setCompanyLoansLoading(false);
+    }
+  };
 
 const loadLoanEligibilityPolicies = async () => {
     try {
@@ -394,7 +448,51 @@ useEffect(() => {
 }, [workspaceId]);
 
   useEffect(() => {
+    if (!workspaceId) {
+      setWorkspaceMembers([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadWorkspaceMembers = async () => {
+      setWorkspaceMembersLoading(true);
+      try {
+        const response = await fetch(
+          `/api/entity/${encodeURIComponent(workspaceId)}/members`,
+          { credentials: 'include' },
+        );
+
+        if (!response.ok) {
+          throw new Error(`Failed to load workspace members (${response.status})`);
+        }
+
+        const data = await response.json();
+        if (cancelled) return;
+
+        setWorkspaceMembers(Array.isArray(data?.members) ? data.members : []);
+      } catch (error) {
+        if (!cancelled) {
+          setWorkspaceMembers([]);
+          console.error('Failed to load workspace members:', error);
+        }
+      } finally {
+        if (!cancelled) {
+          setWorkspaceMembersLoading(false);
+        }
+      }
+    };
+
+    loadWorkspaceMembers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  useEffect(() => {
     loadCompanyLoanApplications();
+    loadCompanyLoans();
   }, [workspaceId]);
 
   // Payoff calculation simulation for selected loan
@@ -426,9 +524,9 @@ useEffect(() => {
   // Helper to open approval modal and reset state
   const openApprovalModal = (loan: LoanItem) => {
     setLoanToApprove(loan);
-    const defaultApprover = loan.approvedBy || 'Umer Khayam (CEO & Founder)';
+    const defaultApprover = loan.approvedBy || '';
     setApprovalOfficial(defaultApprover);
-    setTypedSignature(`s/ ${defaultApprover.split(' (')[0]}`);
+    setTypedSignature(defaultApprover ? `s/ ${defaultApprover.split(' (')[0]}` : '');
     setDrawnSignatureData('');
     setApprovalSignatureType('typed');
     setApprovalNotes('');
@@ -550,7 +648,7 @@ useEffect(() => {
           body: JSON.stringify({
             decision: 'approved',
             disbursementAccountId: selectedDisbursementAccountId,
-            decisionNotes: decisionNotes || undefined,
+            notes: decisionNotes || undefined,
           }),
         },
       );
@@ -566,6 +664,7 @@ useEffect(() => {
       setLoanActionMessage('Loan approved and disbursed successfully.');
 
       await loadCompanyLoanApplications();
+      await loadCompanyLoans();
 
       setIsApprovalModalOpen(false);
       setLoanToApprove(null);
@@ -665,7 +764,7 @@ useEffect(() => {
       return;
     }
 
-    const targetLoan = loans.find((l) => l.id === payLoanId);
+    const targetLoan = companyLoans.find((l) => l.id === payLoanId);
     if (!targetLoan) {
       setLoanActionMessage('Loan not found.');
       return;
@@ -813,10 +912,10 @@ useEffect(() => {
         borrowerRole:
           targetLoan.borrowerRole || 'Employee / Specialist',
         borrowerEmail:
-          targetLoan.borrowerEmail || 'finance@bidexact.com',
+          targetLoan.borrowerEmail || '',
         borrowerId:
-          targetLoan.borrowerId || 'EMP-106',
-        lender: 'Bid Exact LLC',
+          targetLoan.borrowerId || '',
+        lender: targetLoan.lender || '',
         amount: amountNum,
         principalPaid: Math.round(principalPaid),
         interestPaid: Math.round(interestPaid),
@@ -826,7 +925,7 @@ useEffect(() => {
         disbursementAccount: accountName,
         reconciledStatus: 'POSTED & RECONCILED',
         notes: targetLoan.notes,
-        authorizedOfficer: 'Umer Khayam (CEO & Founder)',
+        authorizedOfficer: approvalOfficial || '',
       };
 
       onRecordPayment(paymentRecord, updatedLoan, txn);
@@ -865,7 +964,7 @@ useEffect(() => {
   };
 
   const handleViewReceiptForPayment = (pmt: LoanPaymentRecord) => {
-    const targetLoan = loans.find((l) => l.id === pmt.loanId);
+    const targetLoan = companyLoans.find((l) => l.id === pmt.loanId) || loans.find((l) => l.id === pmt.loanId);
     const receiptNum = pmt.receiptNumber || `RCP-${pmt.id}`;
     const prevBal = pmt.remainingBalance + pmt.principalPaid;
     const isCompanyLoanedOut = targetLoan?.direction === 'company_loaned_out' || 
@@ -884,21 +983,21 @@ useEffect(() => {
       loanName: pmt.loanName,
       loanType: targetLoan?.type || 'Employee Loan',
       direction: targetLoan?.direction || (isCompanyLoanedOut ? 'company_loaned_out' : 'company_borrowed'),
-      borrowerName: pmt.borrowerName || targetLoan?.borrowerName || (isCompanyLoanedOut ? 'Staff Member' : 'Bid Exact LLC'),
+      borrowerName: pmt.borrowerName || targetLoan?.borrowerName || (isCompanyLoanedOut ? 'Staff Member' : 'Company'),
       borrowerRole: targetLoan?.borrowerRole || (isCompanyLoanedOut ? 'Employee / Specialist' : 'Commercial Borrower'),
-      borrowerEmail: targetLoan?.borrowerEmail || 'finance@bidexact.com',
-      borrowerId: targetLoan?.borrowerId || 'EMP-106',
-      lender: targetLoan?.lender || 'Bid Exact LLC',
+      borrowerEmail: targetLoan?.borrowerEmail || '',
+      borrowerId: targetLoan?.borrowerId || '',
+      lender: targetLoan?.lender || '',
       amount: pmt.amount,
       principalPaid: pmt.principalPaid,
       interestPaid: pmt.interestPaid,
       previousBalance: prevBal,
       remainingBalance: pmt.remainingBalance,
       paymentMethod: pmt.method,
-      disbursementAccount: 'Chase Operating ••8491',
+      disbursementAccount: '',
       reconciledStatus: 'POSTED & RECONCILED',
       notes: targetLoan?.notes,
-      authorizedOfficer: 'Umer Khayam (CEO & Founder)',
+      authorizedOfficer: approvalOfficial || '',
     };
 
     setActiveReceiptData(receipt);
@@ -949,9 +1048,9 @@ useEffect(() => {
     const newLoanObj: LoanItem = {
       id: nextLoanId,
       name: title,
-      lender: isCompanyLoaned ? 'Bid Exact LLC' : newLenderName,
+      lender: newLenderName,
       direction: loanCategory,
-      borrowerName: isCompanyLoaned ? resolvedBorrowerName : 'Bid Exact LLC (Corporate)',
+      borrowerName: isCompanyLoaned ? resolvedBorrowerName : 'Company',
       borrowerRole: isCompanyLoaned ? resolvedBorrowerRole : 'Enterprise Borrower',
       borrowerEmail: isCompanyLoaned ? resolvedBorrowerEmail : undefined,
       borrowerId: isCompanyLoaned ? resolvedBorrowerId : undefined,
@@ -962,13 +1061,13 @@ useEffect(() => {
       monthlyPayment: pmtNum,
       originationDate: new Date().toISOString().slice(0, 10),
       maturityDate: newMaturity,
-      nextPaymentDue: '2024-10-01',
+      nextPaymentDue: newMaturity,
       autoPay: true,
       repaymentMethod: newRepaymentMethod,
       approvedBy: requiresImmediateApproval ? newApprovedBy : undefined,
       approvedDate: requiresImmediateApproval ? new Date().toISOString().slice(0, 10) : undefined,
       approvalStatus: requiresImmediateApproval ? 'Approved' : 'Pending Approval',
-      disbursementAccount: 'Chase Operating ••8491',
+      disbursementAccount: '',
       purpose: newPurpose || (isCompanyLoaned ? 'Employee personal or professional hardship advance' : 'Commercial working capital'),
       status: requiresImmediateApproval ? 'Active' : 'Pending Approval',
       notes: isCompanyLoaned
@@ -1363,7 +1462,7 @@ useEffect(() => {
             </span>
           </div>
           <div className="text-[11px] text-[#86948a] mt-2 truncate">
-            Authorized Approvers: <strong>Umer Khayam</strong>, <strong>Sarah Jenkins</strong>
+            Authorized Approvers: <strong>{workspaceMembers.length ? workspaceMembers.map((member) => member.displayName?.trim() || member.email).join(', ') : (workspaceMembersLoading ? 'Loading...' : 'None configured')}</strong>
           </div>
         </div>
 
@@ -1631,7 +1730,7 @@ useEffect(() => {
                       ) : (
                         <div className="font-bold text-[#38bdf8] truncate flex items-center sm:justify-end gap-1">
                           {loan.digitalSignature && <PenTool className="w-3 h-3 text-[#38bdf8]" />}
-                          <span>{loan.approvedBy || (isPending ? 'Action Required' : 'Executive Board')}</span>
+                          <span>{loan.approvedBy || (isPending ? 'Action Required' : 'Not specified')}</span>
                         </div>
                       )}
                       <div className="text-[9px] text-[#64748b]">
@@ -1668,7 +1767,7 @@ useEffect(() => {
                         e.stopPropagation();
                         setPayLoanId(loan.id);
                         setPayAmount(loan.monthlyPayment.toString());
-                        setPayMethod(loan.repaymentMethod || (isEmployeeLoan ? 'Payroll Deduction' : 'Chase Operating Auto-Debit'));
+                        setPayMethod(loan.repaymentMethod || (isEmployeeLoan ? 'Payroll Deduction' : 'Direct Bank ACH'));
                         setIsPaymentModalOpen(true);
                       }}
                       className="px-2.5 py-1 bg-[#1e293b] hover:bg-[#334155] text-white font-mono text-xs rounded flex items-center gap-1 cursor-pointer transition-all"
@@ -1930,9 +2029,9 @@ useEffect(() => {
                   }}
                   className="w-full px-3 py-2 bg-[#0b1326] border border-[#222a3d] rounded text-white focus:outline-none focus:border-[#4edea3]"
                 >
-                  {loans.map((l) => (
+                  {companyLoans.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.borrowerName || l.name} — Balance: ${l.currentBalance.toLocaleString()} ({l.type})
+                      {l.borrowerName || l.name} - Balance: ${l.currentBalance.toLocaleString()} ({l.type})
                     </option>
                   ))}
                 </select>
@@ -1960,7 +2059,7 @@ useEffect(() => {
                 >
                   <option value="Payroll Deduction">Payroll Deduction (Bi-weekly auto-withholding)</option>
                   <option value="Direct Bank ACH">Direct Bank ACH</option>
-                  <option value="Chase Operating Auto-Debit">Chase Operating Auto-Debit (Bank Loan)</option>
+
                   <option value="Check / Wire Transfer">Check / Wire Transfer</option>
                 </select>
               </div>
@@ -2100,7 +2199,7 @@ useEffect(() => {
                     >
                       {employees.map((emp) => (
                         <option key={emp.id} value={emp.id}>
-                          {emp.name} — {emp.role} ({emp.department})
+                          {emp.name} - {emp.role} ({emp.department})
                         </option>
                       ))}
                       <option value="custom">Other Person / Contractor...</option>
@@ -2171,7 +2270,7 @@ useEffect(() => {
                       <input
                         type="text"
                         required
-                        placeholder="e.g. JPMorgan Chase Bank"
+                        placeholder="e.g. Bank or lender name"
                         value={newLenderName}
                         onChange={(e) => setNewLenderName(e.target.value)}
                         className="w-full px-3 py-2 bg-[#131b2e] border border-[#222a3d] rounded text-white focus:outline-none focus:border-[#4edea3]"
@@ -2287,10 +2386,20 @@ useEffect(() => {
                     onChange={(e) => setNewApprovedBy(e.target.value)}
                     className="w-full px-3 py-2 bg-[#131b2e] border border-[#222a3d] rounded text-white focus:outline-none focus:border-[#ffb356]"
                   >
-                    <option value="Umer Khayam (CEO & Founder)">Umer Khayam (CEO &amp; Founder)</option>
-                    <option value="Sarah Jenkins (Financial Controller)">Sarah Jenkins (Financial Controller)</option>
-                    <option value="Marcus Vance (VP Pre-Con)">Marcus Vance (Managing Principal &amp; VP)</option>
-                    <option value="Board of Directors / Executive Committee">Board of Directors / Executive Committee</option>
+                      {workspaceMembers.length === 0 ? (
+                        <option value="">{workspaceMembersLoading ? "Loading workspace members..." : "No workspace members available"}</option>
+                      ) : (
+                        workspaceMembers.map((member) => {
+                          const name = member.displayName?.trim() || member.email;
+                          const role = member.entityRole || member.membershipRole;
+                          const label = role ? `${name} (${role})` : name;
+                          return (
+                            <option key={member.userId} value={label}>
+                              {label}
+                            </option>
+                          );
+                        })
+                      )}
                   </select>
                 </div>
 
@@ -2314,7 +2423,7 @@ useEffect(() => {
                     className="rounded text-[#4edea3] focus:ring-0 cursor-pointer"
                   />
                   <label htmlFor="immediateApproval" className="text-xs text-[#dae2fd] cursor-pointer">
-                    Authorize and activate loan immediately (Disbursement cleared from Chase Operating ••8491)
+                    Authorize and activate loan immediately (Disbursement cleared)
                   </label>
                 </div>
               </div>
@@ -2461,13 +2570,7 @@ useEffect(() => {
                     <label className="block text-[11px] font-mono text-[#38bdf8] mb-1 font-bold">
                       Signing Approver Official:
                     </label>
-                    <input
-                      type="text"
-                      value={approvalOfficial}
-                      onChange={(e) => setApprovalOfficial(e.target.value)}
-                      placeholder="Approver name and corporate title"
-                      className="w-full bg-[#0b1326] border border-[#222a3d] rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-[#38bdf8]"
-                    />
+                    <div className="w-full bg-[#0b1326] border border-[#222a3d] rounded px-3 py-2 text-white font-mono text-xs">Authenticated finance-authorized user</div>
                     <div className="text-[10px] text-[#86948a] mt-1">
                       Authorized under Corporate Benevolent Assistance &amp; Executive Lending Governance.
                     </div>
@@ -2496,7 +2599,7 @@ useEffect(() => {
         <option value="">Select company account...</option>
         {companyFinanceAccounts.map((account) => (
           <option key={account.id} value={account.id}>
-            {account.name} — {account.currency} {Number(account.currentBalance || 0).toLocaleString()}
+            {account.name} - {account.currency} {Number(account.currentBalance || 0).toLocaleString()}
           </option>
         ))}
       </select>
@@ -2549,7 +2652,7 @@ useEffect(() => {
                             type="text"
                             value={typedSignature}
                             onChange={(e) => setTypedSignature(e.target.value)}
-                            placeholder="e.g. s/ Umer Khayam"
+                            placeholder="e.g. s/ Firstname Lastname"
                             className="w-full bg-[#131b2e] border border-[#222a3d] rounded px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-[#38bdf8] italic tracking-wide"
                           />
                         </div>
@@ -2597,7 +2700,7 @@ useEffect(() => {
                         type="text"
                         value={approvalNotes}
                         onChange={(e) => setApprovalNotes(e.target.value)}
-                        placeholder="e.g., Subject to payroll deduction verification; disbursed via Chase ACH..."
+                        placeholder="e.g., Subject to payroll deduction verification; disbursement method..."
                         className="w-full bg-[#131b2e] border border-[#222a3d] rounded px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-[#38bdf8]"
                       />
                     </div>
