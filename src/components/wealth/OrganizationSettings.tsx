@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 
 interface Department {
   id: string;
@@ -8,6 +8,26 @@ interface Department {
   description: string | null;
   managerUserId: string | null;
   status: string;
+}
+
+interface Permission {
+  id: string;
+  code: string;
+  name: string;
+  module: string;
+  description: string | null;
+}
+
+interface Role {
+  id: string;
+  workspaceId: string | null;
+  name: string;
+  code: string;
+  description: string | null;
+  scope: string;
+  isSystemRole: boolean;
+  status: string;
+  permissions: Permission[];
 }
 
 interface OrganizationSettingsProps {
@@ -46,6 +66,10 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
 
   const [form, setForm] = useState<DepartmentForm>(emptyForm);
 
+  const [activeSection, setActiveSection] = useState<'departments' | 'roles'>('departments');
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const loadDepartments = async () => {
     try {
       setLoading(true);
@@ -329,6 +353,7 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
         </button>
       </div>
 
+      {activeSection === 'departments' && (
       <section className="rounded-xl border border-[#222a3d] bg-[#0f172a]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#222a3d] p-5">
           <div>
@@ -372,7 +397,7 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
               </div>
 
               <p className="mt-2 text-xs text-[#86948a]">
-                Click “Add Department” to create the first
+                Click â€œAdd Departmentâ€ to create the first
                 department.
               </p>
             </div>
@@ -380,11 +405,30 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
 
         {!loading && departments.length > 0 && (
           <div className="divide-y divide-[#222a3d]">
-            {departments.map((department) => (
-              <div
-                key={department.id}
-                className="flex flex-wrap items-center justify-between gap-4 p-5"
-              >
+            {[...departments].sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active')).map((department, index) => (
+              <React.Fragment key={department.id}>
+                {department.status !== 'active' && (
+                  index === 0 ||
+                  [...departments].sort(
+                    (a, b) =>
+                      Number(b.status === 'active') -
+                      Number(a.status === 'active')
+                  )[index - 1]?.status === 'active'
+                ) && (
+                  <div className="border-t border-[#334155] px-5 py-3">
+                    <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748b]">
+                      Removed / Archived
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className={`flex flex-wrap items-center justify-between gap-4 p-5 ${
+                    department.status !== 'active'
+                      ? 'bg-[#0b1020]/50 opacity-60'
+                      : ''
+                  }`}
+                >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-semibold text-[#dae2fd]">
@@ -438,40 +482,26 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
                   <button
                     type="button"
                     onClick={() =>
-                      toggleDepartmentStatus(
-                        department,
-                      )
+                      department.status === 'active'
+                        ? removeDepartment(department)
+                        : toggleDepartmentStatus(department)
                     }
                     className={`rounded-md border px-3 py-2 text-[11px] font-mono ${
-                      department.status ===
-                      'active'
-                        ? 'border-amber-500/40 text-amber-300 hover:bg-amber-500/10'
+                      department.status === 'active'
+                        ? 'border-red-500/40 text-red-300 hover:bg-red-500/10'
                         : 'border-[#4edea3]/40 text-[#4edea3] hover:bg-[#4edea3]/10'
                     }`}
                   >
-                    {department.status ===
-                    'active'
-                      ? 'Deactivate'
-                      : 'Activate'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      removeDepartment(
-                        department,
-                      )
-                    }
-                    className="rounded-md border border-red-500/40 px-3 py-2 text-[11px] font-mono text-red-300 hover:bg-red-500/10"
-                  >
-                    Remove
+                    {department.status === 'active' ? 'Remove' : 'Restore'}
                   </button>
                 </div>
-              </div>
+                </div>
+              </React.Fragment>
             ))}
           </div>
         )}
       </section>
+      )}
 
       {showDepartmentForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
@@ -497,7 +527,7 @@ export const OrganizationSettings: React.FC<OrganizationSettingsProps> = ({
                 disabled={saving}
                 className="text-xl text-[#86948a] hover:text-[#dae2fd]"
               >
-                ×
+                Ã—
               </button>
             </div>
 
