@@ -1,10 +1,12 @@
-import { Router } from 'express'
+import { requireWorkspaceAccess } from '../middleware/tenantAuth';
+﻿import { Router } from 'express'
 import { randomBytes } from 'crypto'
 import { and, desc, eq, isNull, or, inArray } from 'drizzle-orm'
 import { db } from '../db'
 import { getAuthenticatedUserId, getMembership, requireWorkspaceMembership, requireWorkspaceRole } from '../auth/middleware'
 import { hashSessionToken, normalizeEmail } from '../auth/service'
-import { attendanceRecords, clients, departments, employees, memberships, notifications, projects, projectAccess, reminders, salesActivities, salesLeads, workspaceInvitations, users } from '../db/app-schema'
+import { resolveAuthorizationContext, assertPermission } from '../auth/authorization'
+import { attendanceRecords, clients, departments, employees, memberships, notifications, projects, projectAccess, reminders, salesActivities, salesLeads, workspaceInvitations, users, roles, permissions, rolePermissions } from '../db/app-schema'
 
 export const workspaceRoutes = Router()
 
@@ -374,6 +376,8 @@ try {
   }
 })
 
+workspaceRoutes.get('/roles', async (req, res) => { try { const workspaceId = typeof req.query.workspaceId === 'string' ? req.query.workspaceId.trim() : ''; if (!workspaceId) return res.status(400).json({ error: 'workspaceId is required' }); const context = await resolveAuthorizationContext(req, workspaceId); assertPermission(context, 'people.manage'); const roleRows = await db.select({ id: roles.id, workspaceId: roles.workspaceId, name: roles.name, code: roles.code, description: roles.description, scope: roles.scope, isSystemRole: roles.isSystemRole, status: roles.status }).from(roles).where(eq(roles.status, 'active')); const workspaceRoles = roleRows.filter((role: any) => role.workspaceId === workspaceId || role.workspaceId === null); const permissionRows = await db.select({ roleId: rolePermissions.roleId, permissionId: rolePermissions.permissionId }).from(rolePermissions); const allPermissions = await db.select({ id: permissions.id, code: permissions.code, name: permissions.name, module: permissions.module, description: permissions.description }).from(permissions); const permissionMap = new Map(allPermissions.map((permission: any) => [permission.id, permission])); const result = workspaceRoles.map((role: any) => ({ ...role, permissions: permissionRows.filter((link: any) => link.roleId === role.id).map((link: any) => permissionMap.get(link.permissionId)).filter(Boolean) })); return res.json({ roles: result, authorization: { realRole: context.realRole, simulation: context.simulation } }); } catch (error: any) { const status = error?.message?.startsWith('Permission denied') ? 403 : 500; return res.status(status).json({ error: error?.message || 'Failed to fetch workspace roles' }); } })
+
 workspaceRoutes.post('/invitations', async (req, res) => {
   try {
     const userId = requireUser(req)
@@ -439,3 +443,4 @@ workspaceRoutes.get('/invitations', async (req, res) => {
     return res.status(500).json( { error: error?.message || 'Failed to fetch invitations' })
   }
 })
+
