@@ -3,6 +3,7 @@ import { Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { financeAccounts, financeTransactions, financeGoals, financeBudgets, financeRecurringRules, portalEntities } from '../server/db/schema'
 import { workspaces, memberships, clients, employees, projects, reminders, notifications } from '../server/db/app-schema'
+import { initializeWorkspaceRbac } from '../server/auth/workspaceRbac'
 
 async function seed() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL })
@@ -22,6 +23,9 @@ async function seed() {
     { id: 'b0000000-0000-0000-0000-000000000001', workspaceId: wsId, userId: 'preview-user', role: 'owner', status: 'active' },
     { id: 'b0000000-0000-0000-0000-000000000002', workspaceId: wsId, userId: 'demo-client', role: 'client', status: 'active' },
   ]).onConflictDoNothing()
+
+  // Initialize standard workspace RBAC departments, roles, and permissions
+  await initializeWorkspaceRbac(db, wsId, 'preview-user')
 
   // 2. Finance Accounts
   await db.insert(financeAccounts).values([

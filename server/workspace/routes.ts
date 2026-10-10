@@ -87,10 +87,10 @@ workspaceRoutes.get('/departments', async (req, res) => {
 
     if (rows.length === 0) {
       const defaults = [
-        { id: 'dept-precon-' + workspaceId.slice(0, 8), workspaceId, name: 'Pre-Construction', code: 'PRE', description: 'Pre-construction & bidding', status: 'active' },
-        { id: 'dept-est-' + workspaceId.slice(0, 8), workspaceId, name: 'Estimating', code: 'EST', description: 'Quantity takeoff & cost estimation', status: 'active' },
-        { id: 'dept-vdc-' + workspaceId.slice(0, 8), workspaceId, name: 'Virtual Design & Construction', code: 'VDC', description: 'BIM & 3D modeling', status: 'active' },
-        { id: 'dept-cr-' + workspaceId.slice(0, 8), workspaceId, name: 'Client Relations', code: 'CR', description: 'Sales & business development', status: 'active' },
+        { workspaceId, name: 'Pre-Construction', code: 'PRE', description: 'Pre-construction & bidding', status: 'active' },
+        { workspaceId, name: 'Estimating', code: 'EST', description: 'Quantity takeoff & cost estimation', status: 'active' },
+        { workspaceId, name: 'Virtual Design & Construction', code: 'VDC', description: 'BIM & 3D modeling', status: 'active' },
+        { workspaceId, name: 'Client Relations', code: 'CR', description: 'Sales & business development', status: 'active' },
       ]
       await db.insert(departments).values(defaults).onConflictDoNothing()
       rows = await db
