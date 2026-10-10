@@ -43,6 +43,7 @@ export type NavTabId =
   | 'payroll'
   | 'commission-settings'
   | 'loans'
+  | 'company-loans'
   | 'partners'
   | 'emergency-fund'
   | 'contractors'

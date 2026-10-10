@@ -645,7 +645,7 @@ async function getLoanPolicy(workspaceId: string, personType: 'employee' | 'part
 }
 async function getActiveLoanCount(workspaceId: string, applicantUserId: string) {
   const rows = await db.select({ id: companyLoans.id, currentBalance: companyLoans.currentBalance }).from(companyLoans).where(and(eq(companyLoans.workspaceId, workspaceId), eq(companyLoans.borrowerUserId, applicantUserId), eq(companyLoans.status, 'active')))
-  return rows.filter((row) => Number(row.currentBalance) > 0.009).length
+  return rows.filter((row: any) => Number(row.currentBalance) > 0.009).length
 }
 async function resolveLoanPerson(workspaceId: string, applicantUserId: string) {
   const [user] = await db.select({ id: users.id, email: users.email, displayName: users.displayName, status: users.status }).from(users).where(eq(users.id, applicantUserId)).limit(1)
@@ -798,7 +798,7 @@ router.get('/company/loan-people', async (req, res) => {
       db.select().from(employees).where(and(eq(employees.workspaceId, workspaceId), eq(employees.status, 'active'))),
       db.select().from(entityOwnerships).where(and(eq(entityOwnerships.workspaceId, workspaceId), eq(entityOwnerships.status, 'active'))),
     ])
-    const ids = Array.from(new Set([...employeeRows.map((r) => r.userId).filter(Boolean) as string[], ...partnerRows.map((r) => r.userId)]))
+    const ids = Array.from(new Set([...employeeRows.map((r: any) => r.userId).filter(Boolean) as string[], ...partnerRows.map((r: any) => r.userId)]))
     const people = []
     for (const applicantUserId of ids) {
       try {
@@ -1215,12 +1215,12 @@ router.get('/company/loans', async (req, res) => {
 
     const applicationByLoanId = new Map(
       applications
-        .filter((application) => application.companyLoanId)
-        .map((application) => [application.companyLoanId, application.id]),
+        .filter((application: any) => application.companyLoanId)
+        .map((application: any) => [application.companyLoanId, application.id]),
     )
 
     res.json(
-      rows.map((loan) => ({
+      rows.map((loan: any) => ({
         ...loan,
         applicationId: applicationByLoanId.get(loan.id),
       })),

@@ -668,7 +668,6 @@ useEffect(() => {
 
       setIsApprovalModalOpen(false);
       setLoanToApprove(null);
-      setLoanApplicationToApprove(null);
     } catch (error) {
       console.error('Failed to approve company loan:', error);
 
@@ -732,7 +731,6 @@ useEffect(() => {
 
       setIsApprovalModalOpen(false);
       setLoanToApprove(null);
-      setLoanApplicationToApprove(null);
     } catch (error) {
       console.error('Failed to decline company loan:', error);
 

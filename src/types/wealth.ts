@@ -102,6 +102,7 @@ export type WealthNavTabId =
   | 'investment-portfolios'
   | 'real-estate-and-property'
   | 'personal-assets'
+  | 'personal-liabilities-and-debt'
   | 'company-loans'
   | 'personal-cash-flow'
   | 'ownership-agreements-and-docs'
